@@ -264,8 +264,9 @@ def run_simulation(
         if liquidity > 0:
             price_change = 0.0005 + net_demand / (liquidity + 1000)
         else:
+            # --- WICHTIGE KORREKTUR: Flash-Crash von -4% auf -0.5% pro Tag gesenkt ---
             if net_demand < 0:
-                price_change = -0.04
+                price_change = -0.005  # früher -0.04 (Total-Crash)
             else:
                 price_change = 0
         
@@ -292,7 +293,7 @@ def run_simulation(
     
     return prices, vix_history, retail_quotes, fund_quotes, hft_active_history
 
-# --- NEU: Der "KI-Coach" (Dynamische Erklärung, die wie ich klingt) ---
+# --- Coach Funktion ---
 def generate_coach_explanation(
     retail_start, retail_panik_verkauf, retail_gier_kauf,
     fund_leverage_limit, hft_vix_abs_schaltung, cb_intervention_schwelle,
@@ -300,7 +301,6 @@ def generate_coach_explanation(
 ):
     text = "**🔍 Was ist hier passiert?**\n\n"
     
-    # 1. Analyse der Panik-Rate
     if retail_panik_verkauf > 0.30:
         text += "🚨 **Problem 1: Die Privatanleger sind viel zu panisch.** Du hast die Panik-Verkaufsrate sehr hoch eingestellt. "
         text += "Das führt dazu, dass sie bei jedem kleinen Rücksetzer massiv verkaufen. Dieser Verkaufsdruck summiert sich über die Zeit und drückt den Kurs nach unten – auch wenn der Markt eigentlich steigen sollte.\n\n"
@@ -314,7 +314,6 @@ def generate_coach_explanation(
         text += "✅ **Gute Einstellungen!** Deine Panik-Rate ist niedrig und die Startquote ist optimistisch. "
         text += "Das führt in der Regel zu einem stabilen Aufwärtstrend. Wenn der Kurs dennoch gefallen ist, lag es wahrscheinlich an einem zufällig großen Schock (dem 'Fat Tail').\n\n"
     
-    # 2. Zusammenfassung des Ergebnisses
     if final_return < -10:
         text += f"📉 **Das Ergebnis:** Der Markt brach um **{abs(final_return):.1f} %** ein. "
         if max_vix > 50:
@@ -326,7 +325,7 @@ def generate_coach_explanation(
     
     return text
 
-# --- Analyse-Funktion (bleibt gleich) ---
+# --- Analyse-Funktion ---
 def generate_user_friendly_insight(
     prices, vix_history, retail_quotes, fund_quotes, hft_active_history,
     retail_start, retail_panik_verkauf, retail_gier_kauf,
@@ -506,7 +505,6 @@ if st.button("🚀 Simulation neu starten", type="primary"):
         st.subheader("🧠 Analyse & Interpretation für Dich")
         
         if scenario != "Benutzerdefiniert (Manuell)":
-            # Falls ein vorgefertigtes Szenario gewählt wurde
             if scenario == "1. Reiner Panik-Crash (HFTs schalten ab)":
                 fixed_text = "**Analyse:** Die HFTs haben bei VIX > 25 abgeschaltet. Dadurch verschwand die Liquidität schlagartig. Privatanleger verkauften massiv, ohne dass Market Maker als Gegenpartei da waren. Der Kurs fiel in einen Flash-Crash."
             elif scenario == "2. Allmächtige Zentralbank (Fed-Put)":
@@ -520,7 +518,6 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             st.info(fixed_text)
             
         else:
-            # Wenn "Manuell", die volle Analyse plus den KI-Coach
             summary, params, story, cb, conclusion, lesson = generate_user_friendly_insight(
                 prices, vix_history, retail_quotes, fund_quotes, hft_active_history,
                 retail_start, retail_panik_verkauf, retail_gier_kauf,
@@ -540,7 +537,6 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             st.markdown(conclusion)
             st.info(lesson)
             
-            # --- NEU: Der KI-Coach erscheint hier ---
             coach_text = generate_coach_explanation(
                 retail_start, retail_panik_verkauf, retail_gier_kauf,
                 fund_leverage_limit, hft_vix_abs_schaltung, cb_intervention_schwelle,
