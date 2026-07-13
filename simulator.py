@@ -152,7 +152,7 @@ with st.sidebar.expander("5. 🌍 Zufällige Schocks"):
     tage = st.slider("Simulations-Länge (Tage)", 100, 2000, 500, 50)
     st.caption(f"📌 *Simuliert {tage} Tage (ca. {tage/250:.1f} Jahre).*")
 
-# --- Simulations-Funktion (angepasst für Fortschrittsbalken) ---
+# --- Simulations-Funktion ---
 def run_simulation(progress_bar, **kwargs):
     tage = kwargs.get('tage', 500)
     retail_start = kwargs.get('retail_start', 0.6)
@@ -188,7 +188,7 @@ def run_simulation(progress_bar, **kwargs):
     fund_quotes = [fund_quote]
     hft_active_history = [1]
     
-    progress_step = max(1, tage // 20) # Aktualisiert den Balken ca. alle 5%
+    progress_step = max(1, tage // 20)
     
     for day in range(tage):
         if np.random.rand() < schock_wahrscheinlichkeit:
@@ -271,7 +271,6 @@ def run_simulation(progress_bar, **kwargs):
         retail_quote_prev = retail_quote
         fund_quote_prev = fund_quote
 
-        # Fortschrittsbalken aktualisieren
         if progress_bar is not None and day % progress_step == 0:
             progress_bar.progress(day / tage, text=f"Simuliere Tag {day} von {tage}...")
     
@@ -342,8 +341,6 @@ def generate_user_friendly_insight(
 
 # --- KORRIGIERTE & DYNAMISCHE COACH-FUNKTION ---
 def generate_coach_explanation(final_return, max_vix, hft_off_days, retail_panik_verkauf, retail_start, fund_leverage_limit):
-    
-    # 1. Dynamischen HFT-Status ermitteln
     if hft_off_days == 0:
         hft_status = "aktive HFTs"
     else:
@@ -351,34 +348,22 @@ def generate_coach_explanation(final_return, max_vix, hft_off_days, retail_panik
 
     text = "**🔍 Was ist hier passiert?**\n\n"
 
-    # 2. Priorität 0: Massiver Crash (Fat Tail)
     if final_return < -15:
         if hft_off_days > 3:
             text += f"💥 **Schwerer Crash trotz guter Einstellungen!** Die Wahrscheinlichkeit (2% Schock) hat einen extremen 'Fat Tail' getroffen. In der Krise waren jedoch **{hft_status}** für mehrere Tage ausgeschaltet. Ohne Liquidität brach der Markt zusammen.\n\n"
         else:
             text += f"💥 **Schwerer Crash trotz guter Einstellungen!** Die Wahrscheinlichkeit (2% Schock) hat einen extremen 'Fat Tail' getroffen. Selbst moderate Panik und **{hft_status}** haben den Sturz nicht aufhalten können.\n\n"
-
-    # 3. Priorität 1: Spezifische Liquiditätskrise durch HFT-Abschaltung
     elif max_vix > 45 and hft_off_days > 3:
         text += f"⚠️ **Liquiditätskrise durch HFT-Abschaltung!** Der VIX schoss über 45, die HFTs verließen den Markt für {hft_off_days} Tage. Ohne Liquidität brach der Markt zusammen.\n\n"
-
-    # 4. Priorität 2: Panische Anleger
     elif retail_panik_verkauf > 0.35:
         text += "🚨 **Problem: Privatanleger sind zu panisch.** Die Panik-Verkaufsrate ist hoch. Sie verkaufen bei jedem kleinen Rücksetzer massiv.\n\n"
-
-    # 5. Priorität 3: Zu niedrige Startquote
     elif retail_start < 0.50:
         text += "⚠️ **Problem: Start-Aktienquote zu niedrig.** Zu wenig langfristige Kaufkraft im Markt.\n\n"
-
-    # 6. Priorität 4: Fonds zu stark gehebelt
     elif fund_leverage_limit > 1.5:
         text += "💥 **Problem: Fonds zu stark gehebelt.** Zwangsverkäufe verschärfen den Absturz.\n\n"
-
-    # 7. Standard: Stabile Einstellungen
     else:
         text += "✅ **Stabile Einstellungen.** Die Parameter sind gut gewählt. Der Kurs folgt Angebot und Nachfrage.\n\n"
 
-    # 8. Ergebnis-Zusammenfassung
     if final_return < -10:
         text += f"📉 **Das Ergebnis:** Der Markt brach um **{abs(final_return):.1f} %** ein. "
     elif final_return > 10:
@@ -437,12 +422,10 @@ if st.button("🚀 Simulation neu starten", type="primary"):
         'schock_wahrscheinlichkeit': schock_wahrscheinlichkeit
     }
     
-    # Fortschrittsbalken starten
     progress_bar = st.progress(0, text="Simulation wird vorbereitet...")
     prices, vix_history, retail_quotes, fund_quotes, hft_active_history = run_simulation(progress_bar, **params)
-    progress_bar.empty() # Ladebalken entfernen
+    progress_bar.empty()
     
-    # Daten für DeepSeek speichern
     st.session_state['last_params'] = params
     st.session_state['last_prices'] = prices
     st.session_state['last_vix_history'] = vix_history
@@ -454,24 +437,18 @@ if st.button("🚀 Simulation neu starten", type="primary"):
     
     st.success("Simulation abgeschlossen!")
     
-    # --- Kennzahlen mit erklärenden Texten ---
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Start", f"{prices[0]:.2f}")
     col1.caption("Startkurs (immer 100.00)")
-
     col2.metric("Ende", f"{prices[-1]:.2f}")
     col2.caption("Endkurs nach 500 Tagen")
-
     col3.metric("Rendite", f"{(prices[-1]/prices[0]-1)*100:.1f} %")
     col3.caption("Gesamte prozentuale Veränderung")
-
     col4.metric("Max. VIX", f"{max(vix_history):.1f}")
     col4.caption("Höchste gemessene Angst")
     
-    # --- Interaktive PLOTLY Charts ---
     st.subheader("📈 Kurs- und VIX-Verlauf")
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
-                        subplot_titles=("Aktienkurs", "Angst-Index (VIX)"))
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08, subplot_titles=("Aktienkurs", "Angst-Index (VIX)"))
     fig.add_trace(go.Scatter(x=list(range(len(prices))), y=prices, mode='lines', name='Aktienkurs', line=dict(color='blue')), row=1, col=1)
     fig.add_trace(go.Scatter(x=list(range(len(vix_history))), y=vix_history, mode='lines', name='VIX', line=dict(color='orange')), row=2, col=1)
     fig.add_hline(y=30, line_dash="dash", line_color="red", row=2, col=1)
@@ -500,8 +477,9 @@ if st.button("🚀 Simulation neu starten", type="primary"):
     df.loc[df["VIX"] > 50, "Phase"] = "⛔ Flash-Crash"
     st.bar_chart(df["Phase"].value_counts())
 
-    # --- ANALYSE & INTERPRETATION ---
     st.subheader("🧠 Analyse & Interpretation für Dich")
+    
+    final_return = (prices[-1] - prices[0]) / prices[0] * 100
     
     if scenario != "Benutzerdefiniert (Manuell)":
         if scenario == "1. Panik-Crash (Roboter schalten aus)":
@@ -514,10 +492,20 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             fixed_text = "**Analyse:** Die ideale Ruhephase. Die Anleger sind gelassen (sehr niedrige Panik-Verkaufsrate 0.05), die HFTs bleiben auch bei hoher Angst aktiv (Abschaltung bei VIX > 60), und die Zentralbank greift nur im absoluten Notfall ein (ab 25% Verlust). Der Markt hat eine stabile Grundliquidität, reagiert rational auf Angebot und Nachfrage, und zeigt einen ruhigen, stetigen Aufwärtstrend ohne Extreme."
         else:
             fixed_text = "Voreingestelltes Szenario geladen."
+        
         st.info(fixed_text)
         
+        # --- NEU: UI-Warnung bei unerwartetem Fat Tail im Szenario ---
+        if final_return < -20:
+            st.warning(
+                "⚠️ **Hinweis zur Abweichung vom Szenario:** "
+                "Obwohl dieses voreingestellte Szenario theoretisch auf Stabilität oder eine Rallye ausgelegt war, "
+                "hat ein extrem früher und starker Zufallsschock (Fat Tail) zu einem unerwartet tiefen Verlust geführt. "
+                "Der Simulator zeigt hier eine seltene, aber realistische Worst-Case-Abweichung vom erwarteten Pfad. "
+                "Dies ist kein Fehler, sondern die mathematische Abbildung der Unberechenbarkeit der Märkte."
+            )
+        
     else:
-        final_return = (prices[-1] - prices[0]) / prices[0] * 100
         max_vix = max(vix_history)
         hft_off_days = sum(1 for x in hft_active_history if x == 0)
         
