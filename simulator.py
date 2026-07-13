@@ -21,33 +21,46 @@ scenario = st.sidebar.selectbox(
      "4. Perfektes Contango (Ruhe)")
 )
 
-# Szenario-Logik (setzt die Regler)
+# Szenario-Logik (setzt ALLE Regler präzise)
 if scenario == "1. Reiner Panik-Crash (HFTs schalten ab)":
     st.session_state["hft_vix"] = 25
     st.session_state["panic_sell"] = 0.40
     st.session_state["cb_intervention"] = 0.30
+    st.session_state["fund_leverage"] = 1.50
+    st.session_state["retail_start"] = 0.60
 elif scenario == "2. Allmächtige Zentralbank (Fed-Put)":
     st.session_state["hft_vix"] = 50
     st.session_state["panic_sell"] = 0.20
     st.session_state["cb_intervention"] = 0.05
+    st.session_state["fund_leverage"] = 1.10
+    st.session_state["retail_start"] = 0.80
 elif scenario == "3. Leverage-Zyklus der Fonds":
     st.session_state["hft_vix"] = 50
     st.session_state["panic_sell"] = 0.20
     st.session_state["cb_intervention"] = 0.15
+    st.session_state["fund_leverage"] = 1.50
+    st.session_state["retail_start"] = 0.60
 elif scenario == "4. Perfektes Contango (Ruhe)":
-    st.session_state["hft_vix"] = 50
-    st.session_state["panic_sell"] = 0.10
-    st.session_state["cb_intervention"] = 0.20
-    st.session_state["retail_start"] = 0.80  # <--- Diese Zeile habe ich hinzugefügt
+    st.session_state["hft_vix"] = 60
+    st.session_state["panic_sell"] = 0.05
+    st.session_state["cb_intervention"] = 0.25
+    st.session_state["fund_leverage"] = 0.90
+    st.session_state["retail_start"] = 0.75
+    st.session_state["schock_volatility"] = 0.20
+    st.session_state["schock_prob"] = 0.20
 else:
     # Standardwerte für benutzerdefiniert
     st.session_state.setdefault("hft_vix", 40)
     st.session_state.setdefault("panic_sell", 0.30)
     st.session_state.setdefault("cb_intervention", 0.15)
+    st.session_state.setdefault("fund_leverage", 1.10)
+    st.session_state.setdefault("retail_start", 0.60)
+    st.session_state.setdefault("schock_volatility", 1.0)
+    st.session_state.setdefault("schock_prob", 2.0)
 
 # 1. Privatanleger (Retail)
 st.sidebar.subheader("1. Privatanleger (Retail)")
-retail_start = st.sidebar.slider("Start-Aktienquote", 0.0, 1.0, 0.6, 0.05)
+retail_start = st.sidebar.slider("Start-Aktienquote", 0.0, 1.0, st.session_state.retail_start, 0.05)
 retail_gier_schwelle = st.sidebar.slider("Gier-Schwelle (Tagesrendite)", 0.01, 0.10, 0.03, 0.01)
 retail_panik_schwelle = st.sidebar.slider("Panik-Schwelle (Tagesrendite)", -0.15, -0.01, -0.05, 0.01)
 retail_panik_verkauf = st.sidebar.slider("Panik-Verkaufsrate (pro Tag)", 0.1, 0.5, st.session_state.panic_sell, 0.05)
@@ -55,7 +68,7 @@ retail_gier_kauf = st.sidebar.slider("Gier-Kaufrate (pro Tag)", 0.05, 0.3, 0.1, 
 
 # 2. Institutionelle Fonds
 st.sidebar.subheader("2. Institutionelle Fonds")
-fund_start = st.sidebar.slider("Start-Aktienquote", 0.0, 1.5, 0.8, 0.05)
+fund_start = st.sidebar.slider("Start-Aktienquote", 0.0, 1.5, st.session_state.fund_leverage, 0.05)
 fund_leverage_limit = st.sidebar.slider("Maximaler Hebel", 1.0, 2.0, 1.1, 0.1)
 fund_vix_threshold = st.sidebar.slider("VIX-Schwelle für Abflüsse", 20, 60, 30, 5)
 fund_abfluss_rate = st.sidebar.slider("Abflussrate bei VIX-Überschreitung", 0.05, 0.5, 0.2, 0.05)
@@ -73,8 +86,8 @@ cb_vola_reduktion = st.sidebar.slider("Vola-Reduktion nach QE (%)", 0.2, 0.8, 0.
 
 # 5. Marktumfeld
 st.sidebar.subheader("5. Marktumfeld")
-schock_volatilitaet = st.sidebar.slider("Tägliche Schock-Volatilität (%)", 0.5, 5.0, 1.0, 0.5) / 100
-schock_wahrscheinlichkeit = st.sidebar.slider("Wahrscheinlichkeit großer Schocks (%)", 0.5, 10.0, 2.0, 0.5) / 100
+schock_volatilitaet = st.sidebar.slider("Tägliche Schock-Volatilität (%)", 0.5, 5.0, st.session_state.schock_volatility, 0.5) / 100
+schock_wahrscheinlichkeit = st.sidebar.slider("Wahrscheinlichkeit großer Schocks (%)", 0.5, 10.0, st.session_state.schock_prob, 0.5) / 100
 tage = st.sidebar.slider("Simulations-Tage", 100, 2000, 500, 50)
 
 # --- Simulations-Funktion ---
@@ -120,7 +133,7 @@ def run_simulation(
         elif ret_5d > retail_gier_schwelle:
             retail_quote = min(1, retail_quote + retail_gier_kauf)
         else:
-            retail_quote += 0.02 * (0.6 - retail_quote)
+            retail_quote += 0.02 * (retail_start - retail_quote)
         
         flows = 0
         if vix > fund_vix_threshold:
@@ -131,7 +144,7 @@ def run_simulation(
         elif ret_5d < -0.05:
             fund_quote = max(0.4, fund_quote - 0.1)
         else:
-            fund_quote += 0.01 * (0.8 - fund_quote)
+            fund_quote += 0.01 * (fund_start - fund_quote)
         
         fund_volume = volume_fund * (1 + flows)
         fund_volume = max(0, fund_volume)
@@ -155,8 +168,8 @@ def run_simulation(
         
         net_demand = retail_net + fund_net
         if liquidity > 0:
-            # 0.0005 ist ein minimaler, natürlicher Aufwärtstrend (Drift) für Aktienmärkte
-            price_change = 0.0005 + net_demand / (liquidity + 1000)
+            # 0.0002 = 0.02% natürlicher Aufwärtstrend (Drift) für Aktienmärkte
+            price_change = 0.0002 + net_demand / (liquidity + 1000)
         else:
             if net_demand < 0:
                 price_change = -0.04
@@ -195,7 +208,7 @@ def generate_insight(retail_quotes, fund_quotes, hft_active_history, vix_history
     elif scenario_name == "3. Leverage-Zyklus der Fonds":
         return "**Analyse:** Die Fonds hebeln sich auf 150%. Bei einem Schock stieg der VIX über 25. Die Kunden zogen massiv Geld ab, was die Fonds zwang, Aktien zu verkaufen, um Liquidität zu schaffen. Dieser 'Zwangsverkauf' (Deleveraging) beschleunigte den Absturz und machte ihn tiefer, als es der ursprüngliche Schock rechtfertigte."
     elif scenario_name == "4. Perfektes Contango (Ruhe)":
-        return "**Analyse:** Die Volatilität war extrem niedrig und es gab kaum große Schocks. Weder Privatanleger noch Fonds reagierten panisch. Die HFTs blieben dauerhaft aktiv und sorgten für stabile Liquidität. Das Ergebnis ist ein ruhiger, stetiger Aufwärtstrend ohne Extreme – der Traum eines jeden Buy-and-Hold-Anlegers."
+        return "**Analyse:** Die Volatilität war extrem niedrig (0.2%) und es gab kaum große Schocks. Die Privatanleger haben eine hohe Startquote (75%) und die Fonds sind fast ungehebelt (90%). Die HFTs blieben dauerhaft aktiv. Durch den natürlichen Drift von 0.02% pro Tag entsteht ein ruhiger, stetiger Aufwärtstrend ohne Extreme."
     else:
         return "**Analyse:** Das ist Dein eigenes Szenario. Beobachte, wie sich die Kurven verhalten: Wenn der VIX über 30 steigt und der Kurs fällt, haben die Agenten panisch verkauft. Wenn der Kurs stabil bleibt, ist das Gleichgewicht zwischen Käufern und Verkäufern gegeben."
 
