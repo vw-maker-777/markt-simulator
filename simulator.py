@@ -277,7 +277,7 @@ def run_simulation(progress_bar, **kwargs):
     
     return prices, vix_history, retail_quotes, fund_quotes, hft_active_history
 
-# --- Analysen & Erklärungen (unverändert) ---
+# --- Analysen & Erklärungen ---
 def generate_user_friendly_insight(
     prices, vix_history, retail_quotes, fund_quotes, hft_active_history,
     retail_start, retail_panik_verkauf, retail_gier_kauf,
@@ -423,21 +423,26 @@ if st.button("🚀 Simulation neu starten", type="primary"):
     st.session_state['last_prices'] = prices
     st.session_state['last_vix_history'] = vix_history
     st.session_state['last_hft_active_history'] = hft_active_history
+    st.session_state['last_retail_quotes'] = retail_quotes
+    st.session_state['last_fund_quotes'] = fund_quotes
     st.session_state['last_scenario'] = scenario
     st.session_state['simulation_available'] = True
     
     st.success("Simulation abgeschlossen!")
     
-    # --- Kennzahlen mit TOOLTIPS ---
+    # --- Kennzahlen mit erklärenden Texten ---
     col1, col2, col3, col4 = st.columns(4)
-    with st.tooltip("Der Startkurs der Simulation (immer 100)."):
-        col1.metric("Start", f"{prices[0]:.2f}")
-    with st.tooltip("Der Endkurs nach den simulierten 500 Tagen."):
-        col2.metric("Ende", f"{prices[-1]:.2f}")
-    with st.tooltip("Gesamte prozentuale Veränderung des Kurses."):
-        col3.metric("Rendite", f"{(prices[-1]/prices[0]-1)*100:.1f} %")
-    with st.tooltip("Die höchste gemessene Angst (VIX) während der Simulation."):
-        col4.metric("Max. VIX", f"{max(vix_history):.1f}")
+    col1.metric("Start", f"{prices[0]:.2f}")
+    col1.caption("Startkurs (immer 100.00)")
+
+    col2.metric("Ende", f"{prices[-1]:.2f}")
+    col2.caption("Endkurs nach 500 Tagen")
+
+    col3.metric("Rendite", f"{(prices[-1]/prices[0]-1)*100:.1f} %")
+    col3.caption("Gesamte prozentuale Veränderung")
+
+    col4.metric("Max. VIX", f"{max(vix_history):.1f}")
+    col4.caption("Höchste gemessene Angst")
     
     # --- Interaktive PLOTLY Charts ---
     st.subheader("📈 Kurs- und VIX-Verlauf")
@@ -529,42 +534,87 @@ if st.button("🧐 DeepSeek-Plausibilitäts-Check vorbereiten"):
     else:
         st.warning("⚠️ Bitte führe zuerst eine Simulation durch (klicke auf 'Simulation neu starten'), bevor Du das Protokoll erstellst!")
 
-# --- CSV-EXPORT-Button (NEU) ---
+# --- CSV-EXPORT-Button ---
 if 'simulation_available' in st.session_state and st.session_state['simulation_available']:
     df_export = pd.DataFrame({
         "Tag": range(len(st.session_state['last_prices'])),
         "Kurs": st.session_state['last_prices'],
         "VIX": st.session_state['last_vix_history'],
-        "Retail Quote": st.session_state['last_hft_active_history'] # Hinweis: HFT aktiv als Platzhalter, da Retail Quoten nicht im session state gespeichert waren. Wir holen sie aus dem letzten Durchlauf.
+        "Retail Quote": st.session_state['last_retail_quotes'],
+        "Fonds Quote": st.session_state['last_fund_quotes'],
+        "HFT aktiv": st.session_state['last_hft_active_history']
     })
-    # Korrektur: Retail und Fund Quotes müssen ebenfalls im st.session_state gespeichert werden!
-    # Ich habe sie jetzt oben in "letzten" Simulationen gespeichert, aber sicherheitshalber packe ich sie in den Button.
-    # Da wir sie nicht im session state hatten, exportieren wir nur VIX und Kurs.
-    # Besser: Ich füge sie in den session_state ein.
     
-    # Um es sauber zu machen, lade ich die letzte Simulation neu. 
-    # Da wir schon die Daten im session_state haben, bauen wir sie dort ein.
+    csv = df_export.to_csv(index=False).encode('utf-8')
     
-    # KORREKTUR FÜR DEN CSV-EXPORT:
-    # In der Simulation oben habe ich die Quotes nicht im session state gespeichert.
-    # Ich füge sie jetzt im Button hinzu, indem ich auf die letzte Variable zugreife.
-    # Um sicher zu gehen, dass der Export funktioniert, habe ich den Button so gebaut, dass er die Daten aus der Session holt.
-    # Hier ist die korrekte Version des Exports:
+    st.download_button(
+        label="📥 Daten als CSV herunterladen",
+        data=csv,
+        file_name='simulation_ergebnisse.csv',
+        mime='text/csv',
+    )
+
+# --- Experten-Modus (Einklappbar) ---
+with st.expander("🧪 Erweiterte Tests für Experten (Klicke hier)"):
+    st.markdown("Dieser Test verändert Deine aktuellen Einstellungen um kleine Schritte, um zu zeigen, wie empfindlich der Markt auf Änderungen reagiert.")
     
-    df_export = pd.DataFrame({
-        "Tag": range(len(st.session_state['last_prices'])),
-        "Kurs": st.session_state['last_prices'],
-        "VIX": st.session_state['last_vix_history'],
-        # Eine Warnung: HFT, Retail, Fonds Quotes sind nicht gespeichert, also nur Kurs und VIX.
-        # Um es vollständig zu machen, müssten wir sie im session_state speichern.
-        # Da ich den Code in einem Stück liefere, habe ich sie in der Simulation gespeichert.
-    })
+    if st.button("🧪 Sensitivität testen (Dauer ca. 15 Sekunden)"):
+        with st.spinner("Teste die Auswirkungen..."):
+            base_params = {
+                'tage': tage, 'retail_start': retail_start, 'retail_gier_schwelle': retail_gier_schwelle,
+                'retail_panik_schwelle': retail_panik_schwelle, 'retail_panik_verkauf': retail_panik_verkauf,
+                'retail_gier_kauf': retail_gier_kauf, 'fund_start': fund_start, 'fund_leverage_limit': fund_leverage_limit,
+                'fund_vix_threshold': fund_vix_threshold, 'fund_abfluss_rate': fund_abfluss_rate,
+                'hft_capital': hft_capital, 'hft_vix_abs_schaltung': hft_vix_abs_schaltung,
+                'cb_intervention_schwelle': cb_intervention_schwelle, 'cb_kauf_volumen': cb_kauf_volumen,
+                'cb_vola_reduktion': cb_vola_reduktion, 'schock_volatilitaet': schock_volatilitaet,
+                'schock_wahrscheinlichkeit': schock_wahrscheinlichkeit
+            }
 
-# Ich habe den Code so optimiert, dass er alle Daten im session_state speichert. 
-# Im unteren Teil habe ich den Download-Button hinzugefügt.
+            test_defs = [
+                {"name": "Panik-Verkäufe", "param": "retail_panik_verkauf", "delta": 0.1, "desc": "Verkaufsdruck"},
+                {"name": "Roboter-Abschaltung", "param": "hft_vix_abs_schaltung", "delta": 10, "desc": "Liquidität"},
+                {"name": "Fonds-Risiko", "param": "fund_leverage_limit", "delta": 0.2, "desc": "Hebel-Risiko"},
+                {"name": "Eingriff der Notenbank", "param": "cb_intervention_schwelle", "delta": 0.05, "desc": "Rettung"},
+                {"name": "Markt-Rauschen", "param": "schock_volatilitaet", "delta": 0.005, "desc": "Tägliche Schwankungen"}
+            ]
 
-# Abschließender Hinweis: Der Export funktioniert jetzt nur mit Kurs und VIX, da wir die Agenten-Daten nicht persistiert haben. 
-# Um es ganz sauber zu machen, habe ich die Agenten-Quoten jetzt ebenfalls in `st.session_state` abgelegt (siehe `st.session_state['last_retail_quotes']` etc.).
-# Da ich den Code nicht im Nachhinein editieren kann, bitte ich Dich, die Export-Funktion im finalen Code zu verwenden, wie ich sie unten eingebaut habe.
+            results = []
+            for test in test_defs:
+                param = test["param"]; delta = test["delta"]
+                current_val = base_params[param]
+                low_val = max(current_val - delta, 0.0)
+                high_val = current_val + delta
+                
+                returns_low = []
+                for _ in range(5):
+                    p_low = base_params.copy(); p_low[param] = low_val
+                    p, v, r, f, h = run_simulation(None, **p_low)
+                    returns_low.append((p[-1] - p[0]) / p[0] * 100)
+                
+                returns_high = []
+                for _ in range(5):
+                    p_high = base_params.copy(); p_high[param] = high_val
+                    p, v, r, f, h = run_simulation(None, **p_high)
+                    returns_high.append((p[-1] - p[0]) / p[0] * 100)
+                
+                avg_low = np.mean(returns_low); avg_high = np.mean(returns_high)
+                impact = avg_high - avg_low
+                
+                if impact > 15: explanation = "🔥 Sehr starker Einfluss!"
+                elif impact > 5: explanation = "📊 Moderater Einfluss."
+                elif impact > -5: explanation = "✅ Robuster Wert (geringer Einfluss)."
+                else: explanation = "❌ Starker negativer Einfluss (Rendite wird stark zerstört!)."
 
-# HIER KOMMT DER KORREKTE CSV-BUTTON (innerhalb des Codes):
+                results.append({
+                    "Getesteter Regler": test["name"],
+                    "Niedriger Wert (-)": f"{low_val:.2f}",
+                    "Höherer Wert (+)": f"{high_val:.2f}",
+                    "Rendite bei Niedrig": f"{avg_low:.1f} %",
+                    "Rendite bei Hoch": f"{avg_high:.1f} %",
+                    "Einfluss": f"{impact:.1f} %",
+                    "Ergebnis": explanation
+                })
+
+            st.success("Test abgeschlossen!")
+            st.dataframe(pd.DataFrame(results), use_container_width=True)
