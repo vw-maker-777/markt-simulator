@@ -199,8 +199,60 @@ def run_simulation(
     
     return prices, vix_history, retail_quotes, fund_quotes, hft_active_history
 
-# --- Funktion für die Erklärungsbox ---
-def generate_insight(retail_quotes, fund_quotes, hft_active_history, vix_history, prices, scenario_name):
+# --- NEUE: Dynamische Analyse-Funktion (für manuelle Einstellungen) ---
+def generate_dynamic_insight(retail_quotes, fund_quotes, hft_active_history, vix_history, prices, 
+                             fund_leverage_limit, fund_vix_threshold, hft_vix_abs_schaltung, 
+                             cb_intervention_schwelle, scenario_name):
+    
+    # Basis-Statistiken sammeln
+    max_vix = max(vix_history)
+    max_drawdown = min([(p - prices[0]) / prices[0] for p in prices]) * 100
+    final_return = (prices[-1] - prices[0]) / prices[0] * 100
+    
+    # Prüfung: Wurden HFTs abgeschaltet?
+    hft_off_days = sum(1 for x in hft_active_history if x == 0)
+    hft_off_ratio = hft_off_days / len(hft_active_history)
+    
+    # Prüfung: Wurde die Zentralbank aktiv?
+    cb_interventions = 0
+    for i in range(1, len(prices)-1):
+        # Ein großer Sprung nach oben im Kurs deutet auf eine Zentralbank-Intervention hin
+        if prices[i] > prices[i-1] * 1.03:
+            cb_interventions += 1
+    
+    # Prüfung: Wie hoch war der Hebel der Fonds?
+    avg_fund_leverage = np.mean(fund_quotes)
+    high_leverage = avg_fund_leverage > 1.2
+
+    # Dynamische Text-Generierung
+    if scenario_name != "Benutzerdefiniert (Manuell)":
+        return None # Falls ein vorgefertigtes Szenario gewählt wurde, nutze die andere Funktion
+
+    analysis_text = f"**📊 Analyse Deines manuellen Szenarios:**\n\n"
+    analysis_text += f"Der Markt startete bei 100 Punkten und endete bei **{prices[-1]:.2f}**.\n"
+    analysis_text += f"Das entspricht einer Gesamtrendite von **{final_return:.1f} %**.\n\n"
+    
+    if max_vix > 50:
+        analysis_text += f"🚨 **Flash-Crash erkannt!** Der VIX (Angst-Index) schoss auf **{max_vix:.0f}**.\n"
+        if hft_off_ratio > 0.1:
+            analysis_text += f"   ➡️ Ursache: Die HFTs waren für **{hft_off_days} Tage** abgeschaltet, wodurch die Liquidität im Markt verschwand.\n"
+    elif max_vix > 30:
+        analysis_text += f"🔴 **Panik-Phase erlebt.** Der VIX stieg auf **{max_vix:.0f}**.\n"
+        if max_drawdown < -10:
+            analysis_text += f"   ➡️ Der Kurs brach in der Panik um **{abs(max_drawdown):.1f} %** ein.\n"
+    else:
+        analysis_text += f"🟢 **Relativ ruhiger Markt.** Der VIX blieb die meiste Zeit unter 30.\n"
+
+    if high_leverage:
+        analysis_text += f"\n📈 **Hebel-Effekt:** Die Fonds hatten eine durchschnittliche Aktienquote von **{avg_fund_leverage:.1f}** (stark gehebelt). Das hat die Ausschläge im Markt verstärkt.\n"
+    
+    if cb_interventions > 0:
+        analysis_text += f"\n🏦 **Zentralbank aktiv!** Die Notenbank musste **{cb_interventions} Mal** eingreifen, um den Markt zu stützen.\n"
+
+    return analysis_text
+
+# --- Funktion für die Erklärungsbox (Feste Szenarien) ---
+def generate_fixed_insight(scenario_name):
     if scenario_name == "1. Reiner Panik-Crash (HFTs schalten ab)":
         return "**Analyse:** Die HFTs haben bei VIX > 25 abgeschaltet. Dadurch verschwand die Liquidität schlagartig. Privatanleger (Panik-Rate 0.40) verkauften massiv, ohne dass Market Maker als Gegenpartei da waren. Der Kurs fiel in einen Flash-Crash. Der Markt konnte sich erst erholen, als die HFTs wieder einschalteten."
     elif scenario_name == "2. Allmächtige Zentralbank (Fed-Put)":
@@ -210,7 +262,7 @@ def generate_insight(retail_quotes, fund_quotes, hft_active_history, vix_history
     elif scenario_name == "4. Perfektes Contango (Ruhe)":
         return "**Analyse:** Die Volatilität war extrem niedrig (0.2%) und es gab kaum große Schocks. Die Privatanleger haben eine hohe Startquote (75%) und die Fonds sind fast ungehebelt (90%). Die HFTs blieben dauerhaft aktiv. Durch den natürlichen Drift von 0.02% pro Tag entsteht ein ruhiger, stetiger Aufwärtstrend ohne Extreme."
     else:
-        return "**Analyse:** Das ist Dein eigenes Szenario. Beobachte, wie sich die Kurven verhalten: Wenn der VIX über 30 steigt und der Kurs fällt, haben die Agenten panisch verkauft. Wenn der Kurs stabil bleibt, ist das Gleichgewicht zwischen Käufern und Verkäufern gegeben."
+        return None
 
 # --- Hauptbereich ---
 if st.button("🚀 Simulation neu starten", type="primary"):
@@ -302,10 +354,22 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             
         st.dataframe(display_df.style.map(highlight_vix, subset=["VIX"]))
 
-        # --- Erklärungsbox ---
+        # --- Erklärungsbox (JETZT DYNAMISCH) ---
         st.subheader("🧠 Interpretation der Marktdynamik")
-        explanation = generate_insight(retail_quotes, fund_quotes, hft_active_history, vix_history, prices, scenario)
-        st.info(explanation)
+        
+        # Prüfe, ob ein festes Szenario gewählt wurde
+        fixed_text = generate_fixed_insight(scenario)
+        
+        if fixed_text:
+            st.info(fixed_text)
+        else:
+            # Wenn "Manuell", generiere eine dynamische Analyse basierend auf den echten Daten
+            dynamic_text = generate_dynamic_insight(
+                retail_quotes, fund_quotes, hft_active_history, vix_history, prices,
+                fund_leverage_limit, fund_vix_threshold, hft_vix_abs_schaltung,
+                cb_intervention_schwelle, scenario
+            )
+            st.info(dynamic_text)
 
 else:
     st.info("👈 Wähle ein Szenario oder stelle die Parameter manuell ein, dann klicke auf 'Simulation neu starten'.")
