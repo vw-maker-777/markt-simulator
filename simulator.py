@@ -241,6 +241,6 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             pass
         return ""
         
-    st.dataframe(display_df.style.applymap(highlight_vix, subset=["VIX"]))
+    st.dataframe(display_df.style.map(highlight_vix, subset=["VIX"]))
 else:
     st.info("👈 Stelle die Parameter in der Sidebar ein und klicke auf 'Simulation neu starten'.")
