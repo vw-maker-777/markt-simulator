@@ -38,6 +38,7 @@ elif scenario == "4. Perfektes Contango (Ruhe)":
     st.session_state["hft_vix"] = 50
     st.session_state["panic_sell"] = 0.10
     st.session_state["cb_intervention"] = 0.20
+    st.session_state["retail_start"] = 0.80  # <--- Diese Zeile habe ich hinzugefügt
 else:
     # Standardwerte für benutzerdefiniert
     st.session_state.setdefault("hft_vix", 40)
@@ -154,7 +155,8 @@ def run_simulation(
         
         net_demand = retail_net + fund_net
         if liquidity > 0:
-            price_change = net_demand / (liquidity + 1000)
+            # 0.0005 ist ein minimaler, natürlicher Aufwärtstrend (Drift) für Aktienmärkte
+            price_change = 0.0005 + net_demand / (liquidity + 1000)
         else:
             if net_demand < 0:
                 price_change = -0.04
