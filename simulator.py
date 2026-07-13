@@ -196,8 +196,8 @@ def run_simulation(
     
     retail_quote = retail_start
     fund_quote = fund_start
-    retail_quote_prev = retail_quote  # NEU: Speichert den Wert von gestern
-    fund_quote_prev = fund_quote      # NEU: Speichert den Wert von gestern
+    retail_quote_prev = retail_quote
+    fund_quote_prev = fund_quote
     hft_active = True
     
     volume_retail = 100
@@ -208,19 +208,16 @@ def run_simulation(
     hft_active_history = [1]
     
     for day in range(tage):
-        # 1. Exogener Schock
         if np.random.rand() < schock_wahrscheinlichkeit:
             shock = np.random.normal(-0.05, 0.02)
         else:
             shock = np.random.normal(0, schock_volatilitaet)
         
-        # 2. Rendite der letzten 5 Tage berechnen
         if len(prices) >= 5:
             ret_5d = (prices[-1] - prices[-5]) / prices[-5]
         else:
             ret_5d = 0
         
-        # 3. Privatanleger Verhalten
         target_retail = min(1.0, retail_start + (day / tage) * 0.10)
         if ret_5d < retail_panik_schwelle:
             retail_quote = max(0, retail_quote - retail_panik_verkauf)
@@ -229,7 +226,6 @@ def run_simulation(
         else:
             retail_quote += 0.02 * (target_retail - retail_quote)
         
-        # 4. Fonds Verhalten
         target_fund = min(fund_leverage_limit, fund_start + (day / tage) * 0.10)
         flows = 0
         if vix > fund_vix_threshold:
@@ -245,7 +241,6 @@ def run_simulation(
         fund_volume = volume_fund * (1 + flows)
         fund_volume = max(0, fund_volume)
         
-        # 5. HFTs / Market Maker
         vix_dec = vix / 100
         if vix_dec > hft_vix_abs_schaltung / 100:
             hft_active = False
@@ -255,39 +250,30 @@ def run_simulation(
             hft_volume = int(hft_capital / (vix_dec ** 2 + 0.001))
             hft_volume = max(100, hft_volume)
         
-        # 6. Netto-Demand (NUR aus der Veränderung zum Vortag!) - DAS IST DER FIX
         retail_net = (retail_quote - retail_quote_prev) * volume_retail
         fund_net = (fund_quote - fund_quote_prev) * fund_volume
         net_demand = retail_net + fund_net
         
-        # 7. Liquidität und Preisänderung
         total_liquidity = volume_retail + volume_fund
-        
-        # Wenn HFTs aktiv sind, stabilisieren sie den Markt
         if hft_active:
             liquidity = total_liquidity
         else:
-            # Wenn HFTs abschalten, wird der Markt illiquide (niedrigeres Volumen), aber KEINE Explosion!
             liquidity = max(100, total_liquidity * 0.2)
         
-        # Realistische Preisänderung: (Netto-Demand / Liquidität) * 0.1 (Preis-Impact-Faktor)
         if liquidity > 0:
-            price_change = 0.0001 + (net_demand / liquidity) * 0.1  # 0.0001 = 0.01% natürlicher Drift pro Tag
+            price_change = 0.0001 + (net_demand / liquidity) * 0.1
         else:
-            price_change = 0.0001 - 0.001  # Falls Liquidität 0 ist, leichter Verfall
+            price_change = 0.0001 - 0.001
         
-        # Schock hinzufügen
         price_change += shock
         price = price * (1 + price_change)
         price = max(1, price)
         prices.append(price)
         
-        # 8. VIX aktualisieren
         vix = 15 + np.abs(price_change) * 500 + np.random.normal(0, 2)
         vix = max(10, min(80, vix))
         vix_history.append(vix)
         
-        # 9. Zentralbank Intervention
         if len(prices) >= 5:
             drop_5d = (prices[-5] - prices[-1]) / prices[-5]
             if drop_5d > cb_intervention_schwelle:
@@ -296,7 +282,6 @@ def run_simulation(
                 vix = vix * (1 - cb_vola_reduktion)
                 vix_history[-1] = vix
         
-        # 10. Agenten-Historie speichern & Quotes für den nächsten Tag sichern
         retail_quotes.append(retail_quote)
         fund_quotes.append(fund_quote)
         hft_active_history.append(1 if hft_active else 0)
@@ -306,31 +291,44 @@ def run_simulation(
     
     return prices, vix_history, retail_quotes, fund_quotes, hft_active_history
 
-# --- Coach Funktion ---
+# --- Coach Funktion (KORRIGIERT) ---
 def generate_coach_explanation(
     retail_start, retail_panik_verkauf, retail_gier_kauf,
     fund_leverage_limit, hft_vix_abs_schaltung, cb_intervention_schwelle,
-    final_return, max_vix, max_drawdown
+    final_return, max_vix, max_drawdown, hft_off_days
 ):
     text = "**🔍 Was ist hier passiert?**\n\n"
     
-    if retail_panik_verkauf > 0.30:
-        text += "🚨 **Problem 1: Die Privatanleger sind viel zu panisch.** Du hast die Panik-Verkaufsrate sehr hoch eingestellt. "
-        text += "Das führt dazu, dass sie bei jedem kleinen Rücksetzer massiv verkaufen. Dieser Verkaufsdruck summiert sich über die Zeit und drückt den Kurs nach unten – auch wenn der Markt eigentlich steigen sollte.\n\n"
+    # NEU: Priorität 1 - Wenn HFTs ausgefallen sind und der VIX extrem war
+    if max_vix > 45 and hft_off_days > 3:
+        text += "⚠️ **Liquiditätskrise durch HFT-Abschaltung!** \n"
+        text += "Der VIX (Angst-Index) schoss über 45, woraufhin die HFTs den Markt verließen. "
+        text += "Da plötzlich die Liquidität massiv abnahm, kam es zu einem extremen Flash-Crash. "
+        text += "Der Markt brach zusammen, nicht wegen einer übermäßigen Panik der Anleger, sondern weil das Fundament (die Liquidität) wegbrach.\n\n"
+        
+    # Priorität 2 - Wenn Anleger panisch waren
+    elif retail_panik_verkauf > 0.35:
+        text += "🚨 **Problem: Die Privatanleger sind viel zu panisch.** Du hast die Panik-Verkaufsrate sehr hoch eingestellt. "
+        text += "Das führt dazu, dass sie bei jedem Rücksetzer massiv verkaufen. Dieser Verkaufsdruck summiert sich und drückt den Kurs nach unten.\n\n"
+        
+    # Priorität 3 - Wenn Startquote zu niedrig
     elif retail_start < 0.50:
-        text += "⚠️ **Problem 2: Die Start-Aktienquote ist zu niedrig.** Die Anleger starten mit zu wenig Aktien. "
+        text += "⚠️ **Problem: Die Start-Aktienquote ist zu niedrig.** Die Anleger starten mit zu wenig Aktien. "
         text += "Da sie bei jedem Rücksetzer zusätzlich verkaufen, fehlt dem Markt die langfristige Kaufkraft.\n\n"
+        
+    # Priorität 4 - Wenn Fonds übermäßig hebeln
     elif fund_leverage_limit > 1.5:
-        text += "💥 **Problem 3: Die Fonds sind übermäßig gehebelt.** Ein Hebel über 1.5 ist in diesem Simulator extrem riskant. "
-        text += "Sobald der Kurs fällt, müssen die Fonds Aktien verkaufen, um ihre Kredite zu bedienen – das verschärft den Absturz massiv.\n\n"
+        text += "💥 **Problem: Die Fonds sind übermäßig gehebelt.** Ein Hebel über 1.5 ist extrem riskant. "
+        text += "Sobald der Kurs fällt, müssen die Fonds Aktien verkaufen, um ihre Kredite zu bedienen – das verschärft den Absturz.\n\n"
+        
     else:
         text += "✅ **Gute Einstellungen!** Deine Panik-Rate ist niedrig und die Startquote ist optimistisch. "
-        text += "Das führt in der Regel zu einem stabilen Aufwärtstrend. Wenn der Kurs dennoch gefallen ist, lag es wahrscheinlich an einem zufällig großen Schock (dem 'Fat Tail').\n\n"
+        text += "Das führt in der Regel zu einem stabilen Aufwärtstrend. Wenn der Kurs dennoch gefallen ist, lag es an einem extremen Ausreißer, den die HFTs nicht abfangen konnten.\n\n"
     
     if final_return < -10:
         text += f"📉 **Das Ergebnis:** Der Markt brach um **{abs(final_return):.1f} %** ein. "
         if max_vix > 50:
-            text += "Der VIX (Angst-Index) schoss über 50, was auf einen extremen Flash-Crash hindeutet. "
+            text += "Der VIX schoss über 50, was auf einen extremen Flash-Crash hindeutet."
     elif final_return > 10:
         text += f"📈 **Das Ergebnis:** Der Markt stieg um **{final_return:.1f} %**. Eine starke Rallye!"
     else:
@@ -338,7 +336,7 @@ def generate_coach_explanation(
     
     return text
 
-# --- Analyse-Funktion ---
+# --- Analyse-Funktion (MIT KORREKTUR FÜR HFT-OFF DAYS) ---
 def generate_user_friendly_insight(
     prices, vix_history, retail_quotes, fund_quotes, hft_active_history,
     retail_start, retail_panik_verkauf, retail_gier_kauf,
@@ -541,6 +539,7 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             final_return = (prices[-1] - prices[0]) / prices[0] * 100
             max_vix = max(vix_history)
             max_drawdown = min([(p - prices[0]) / prices[0] for p in prices]) * 100
+            hft_off_days = sum(1 for x in hft_active_history if x == 0)
             
             st.success(summary)
             st.markdown(params)
@@ -552,7 +551,7 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             coach_text = generate_coach_explanation(
                 retail_start, retail_panik_verkauf, retail_gier_kauf,
                 fund_leverage_limit, hft_vix_abs_schaltung, cb_intervention_schwelle,
-                final_return, max_vix, max_drawdown
+                final_return, max_vix, max_drawdown, hft_off_days
             )
             st.warning(coach_text)
 
