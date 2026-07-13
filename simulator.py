@@ -243,6 +243,5 @@ def highlight_vix(val):
     return ""
     
 st.dataframe(display_df.style.applymap(highlight_vix, subset=["VIX"]))
-
 else:
-    st.info("👈 Stelle die Parameter in der Sidebar ein und klicke auf 'Simulation neu starten'.")
+        st.info("👈 Stelle die Parameter in der Sidebar ein und klicke auf 'Simulation neu starten'.")
