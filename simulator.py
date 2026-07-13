@@ -180,7 +180,7 @@ else:
 tage = st.sidebar.slider("Simulations-Tage", 100, 2000, 500, 50)
 st.sidebar.caption(f"📌 *Simuliert {tage} Handelstage (ca. {tage/250:.1f} Jahre).*")
 
-# --- Simulations-Funktion (Neue, realistische Logik) ---
+# --- Simulations-Funktion ---
 def run_simulation(
     tage,
     retail_start, retail_gier_schwelle, retail_panik_schwelle, retail_panik_verkauf, retail_gier_kauf,
@@ -291,52 +291,7 @@ def run_simulation(
     
     return prices, vix_history, retail_quotes, fund_quotes, hft_active_history
 
-# --- Coach Funktion (KORRIGIERT) ---
-def generate_coach_explanation(
-    retail_start, retail_panik_verkauf, retail_gier_kauf,
-    fund_leverage_limit, hft_vix_abs_schaltung, cb_intervention_schwelle,
-    final_return, max_vix, max_drawdown, hft_off_days
-):
-    text = "**🔍 Was ist hier passiert?**\n\n"
-    
-    # NEU: Priorität 1 - Wenn HFTs ausgefallen sind und der VIX extrem war
-    if max_vix > 45 and hft_off_days > 3:
-        text += "⚠️ **Liquiditätskrise durch HFT-Abschaltung!** \n"
-        text += "Der VIX (Angst-Index) schoss über 45, woraufhin die HFTs den Markt verließen. "
-        text += "Da plötzlich die Liquidität massiv abnahm, kam es zu einem extremen Flash-Crash. "
-        text += "Der Markt brach zusammen, nicht wegen einer übermäßigen Panik der Anleger, sondern weil das Fundament (die Liquidität) wegbrach.\n\n"
-        
-    # Priorität 2 - Wenn Anleger panisch waren
-    elif retail_panik_verkauf > 0.35:
-        text += "🚨 **Problem: Die Privatanleger sind viel zu panisch.** Du hast die Panik-Verkaufsrate sehr hoch eingestellt. "
-        text += "Das führt dazu, dass sie bei jedem Rücksetzer massiv verkaufen. Dieser Verkaufsdruck summiert sich und drückt den Kurs nach unten.\n\n"
-        
-    # Priorität 3 - Wenn Startquote zu niedrig
-    elif retail_start < 0.50:
-        text += "⚠️ **Problem: Die Start-Aktienquote ist zu niedrig.** Die Anleger starten mit zu wenig Aktien. "
-        text += "Da sie bei jedem Rücksetzer zusätzlich verkaufen, fehlt dem Markt die langfristige Kaufkraft.\n\n"
-        
-    # Priorität 4 - Wenn Fonds übermäßig hebeln
-    elif fund_leverage_limit > 1.5:
-        text += "💥 **Problem: Die Fonds sind übermäßig gehebelt.** Ein Hebel über 1.5 ist extrem riskant. "
-        text += "Sobald der Kurs fällt, müssen die Fonds Aktien verkaufen, um ihre Kredite zu bedienen – das verschärft den Absturz.\n\n"
-        
-    else:
-        text += "✅ **Gute Einstellungen!** Deine Panik-Rate ist niedrig und die Startquote ist optimistisch. "
-        text += "Das führt in der Regel zu einem stabilen Aufwärtstrend. Wenn der Kurs dennoch gefallen ist, lag es an einem extremen Ausreißer, den die HFTs nicht abfangen konnten.\n\n"
-    
-    if final_return < -10:
-        text += f"📉 **Das Ergebnis:** Der Markt brach um **{abs(final_return):.1f} %** ein. "
-        if max_vix > 50:
-            text += "Der VIX schoss über 50, was auf einen extremen Flash-Crash hindeutet."
-    elif final_return > 10:
-        text += f"📈 **Das Ergebnis:** Der Markt stieg um **{final_return:.1f} %**. Eine starke Rallye!"
-    else:
-        text += f"📊 **Das Ergebnis:** Der Markt bewegte sich seitwärts mit einer Rendite von **{final_return:.1f} %**."
-    
-    return text
-
-# --- Analyse-Funktion (MIT KORREKTUR FÜR HFT-OFF DAYS) ---
+# --- Analyse & Coach Funktionen ---
 def generate_user_friendly_insight(
     prices, vix_history, retail_quotes, fund_quotes, hft_active_history,
     retail_start, retail_panik_verkauf, retail_gier_kauf,
@@ -350,84 +305,57 @@ def generate_user_friendly_insight(
     avg_fund = np.mean(fund_quotes)
     max_drawdown = min([(p - prices[0]) / prices[0] for p in prices]) * 100
     
-    if final_return > 10:
-        summary = f"🚀 **Starke Rallye:** Der Markt ist um **{final_return:.1f} %** gestiegen."
-    elif final_return > 2:
-        summary = f"📈 **Leichter Anstieg:** Der Markt legte um **{final_return:.1f} %** zu."
-    elif final_return > -2:
-        summary = f"➖ **Seitwärtsbewegung:** Der Markt pendelte sich um die Null-Linie ein."
-    elif final_return > -15:
-        summary = f"📉 **Moderate Rezession:** Der Markt verlor **{abs(final_return):.1f} %**."
-    else:
-        summary = f"💥 **Schwerer Crash:** Der Markt brach um **{abs(final_return):.1f} %** ein."
+    if final_return > 10: summary = f"🚀 **Starke Rallye:** +{final_return:.1f} %"
+    elif final_return > 2: summary = f"📈 **Leichter Anstieg:** +{final_return:.1f} %"
+    elif final_return > -2: summary = f"➖ **Seitwärts:** {final_return:.1f} %"
+    elif final_return > -15: summary = f"📉 **Moderate Rezession:** {abs(final_return):.1f} %"
+    else: summary = f"💥 **Schwerer Crash:** {abs(final_return):.1f} %"
 
-    params_text = "**⚙️ Wie waren die Marktteilnehmer eingestellt?**\n\n"
-    params_text += f"• **🟢 Privatanleger:** Startquote {retail_start*100:.0f}%, Panik-Verkauf {retail_panik_verkauf:.1f}. "
-    if retail_panik_verkauf > 0.3:
-        params_text += "Sie reagierten **sehr panisch**.\n"
-    else:
-        params_text += "Sie reagierten **gelassen**.\n"
-        
-    params_text += f"• **🔴 Fonds:** Hebel {fund_leverage_limit:.1f}. "
-    if fund_leverage_limit > 1.3:
-        params_text += "**Riskant**: Stark gehebelt.\n"
-    else:
-        params_text += "**Konservativ**: Geringes Risiko.\n"
-        
-    params_text += f"• **🟣 HFTs:** Abschaltung bei VIX > {hft_vix_abs_schaltung}.\n"
-    params_text += f"• **🏦 Zentralbank:** Eingriff ab {cb_intervention_schwelle:.0%} Kursverlust.\n\n"
+    params_text = f"**⚙️ Einstellungen:** 🟢 Quote {retail_start*100:.0f}%, Panik {retail_panik_verkauf:.1f}. 🔴 Hebel {fund_leverage_limit:.1f}. 🟣 HFT-Abschaltung {hft_vix_abs_schaltung}. 🏦 ZB-Eingriff {cb_intervention_schwelle:.0%}.\n\n"
 
-    story_text = "**📖 Die Geschichte dieser Simulation:**\n\n"
+    story_text = "**📖 Geschichte:**\n\n"
     if max_vix > 45:
-        story_text += "Es gab eine **extreme Panik-Phase** (VIX > 45). "
-        if hft_off_days > 5:
-            story_text += f"Die HFTs schalteten für {hft_off_days} Tage ab. Dadurch wurde der Markt extrem illiquide, und die Kurse machten große Sprünge. "
-    elif max_vix > 25:
-        story_text += "Es gab eine **moderate Panik-Phase**. "
-    else:
-        story_text += "Der Markt war **überraschend ruhig**. "
+        story_text += "Extreme Panik-Phase (VIX > 45). "
+        if hft_off_days > 5: story_text += f"HFTs {hft_off_days} Tage aus. Markt illiquide. "
+    elif max_vix > 25: story_text += "Moderate Panik-Phase. "
+    else: story_text += "Ruhiger Markt. "
 
-    if avg_fund > 1.2:
-        story_text += f"Die Fonds waren stark gehebelt ({avg_fund*100:.0f}%). Als die Kurse fielen, mussten sie verkaufen – das **verschärfte den Absturz**. "
-    elif avg_fund < 0.95:
-        story_text += "Die Fonds agierten sehr defensiv und stabilisierten den Markt. "
-
-    if hft_off_days > 0:
-        story_text += "Die Liquidität verschwand, aber der Kurs folgte weiterhin dem Angebot und der Nachfrage der Anleger. "
+    if avg_fund > 1.2: story_text += "Fonds stark gehebelt => verschärft Absturz. "
+    if hft_off_days > 0: story_text += "Liquidität brach weg. "
 
     cb_text = ""
     cb_interventions = 0
     for i in range(1, len(prices)-1):
-        if prices[i] > prices[i-1] * 1.03:
-            cb_interventions += 1
-    
-    if cb_interventions > 0:
-        cb_text = f"**🏦 Rolle der Zentralbank:** Die Notenbank griff **{cb_interventions} Mal** ein und verhinderte den totalen Zusammenbruch."
-    else:
-        cb_text = f"**🏦 Rolle der Zentralbank:** Die Notenbank griff **nicht** ein. Der Markt wurde sich selbst überlassen."
+        if prices[i] > prices[i-1] * 1.03: cb_interventions += 1
+    if cb_interventions > 0: cb_text = f"🏦 ZB griff {cb_interventions}x ein."
+    else: cb_text = "🏦 ZB griff nicht ein."
 
-    conclusion = f"**📌 Fazit für Dein Portfolio:** Rendite **{final_return:.1f} %**, max. Drawdown **{abs(max_drawdown):.1f} %**."
-
-    lesson = "**💡 Was Du heute lernen kannst:**\n\n"
-    if hft_off_days > 5:
-        lesson += "Wenn HFTs abgeschaltet werden, verschwindet die Liquidität. Ein Markt ohne Käufer ist wie ein Auto ohne Benzin – er steht still und stürzt ab. **Merke: Liquidität ist das Blut des Marktes.**"
-    elif fund_leverage_limit > 1.5 and max_drawdown < -15:
-        lesson += "Hoher Hebel mag in Rallyes verlockend sein, aber in Crashs wird er zur tödlichen Falle. Die Fonds mussten verkaufen, weil sie ihre Kredite bedienen mussten – das hat den Absturz massiv verstärkt. **Merke: Hebel verstärkt Gewinne, aber auch Verluste.**"
-    elif cb_interventions > 3:
-        lesson += "Die Zentralbank hat mehrfach eingegriffen. Das hat den Markt gestützt, aber auch eine künstliche Blase geschaffen. Anleger verlassen sich oft blind auf die Notenbank. **Merke: Der 'Fed-Put' ist eine Illusion – er funktioniert nur, solange die Zentralbank Geld hat.**"
-    elif max_vix < 25 and final_return > 5:
-        lesson += "Ein ruhiger, stetiger Aufwärtstrend ist der Traum eines jeden Anlegers. Ohne Panik, ohne HFT-Abschaltung und ohne übermäßigen Hebel kann der Markt stabil wachsen. **Merke: Geduld und Disziplin schlagen oft die hektische Jagd nach Gewinnen.**"
-    else:
-        lesson += "Der Markt ist ein komplexes System aus Angst, Gier und Algorithmen. Jeder Regler, den Du verschiebst, verändert das Gleichgewicht. **Merke: Verstehe die Teilnehmer, bevor Du auf den Markt gehst.**"
-
+    conclusion = f"**📌 Fazit:** Rendite {final_return:.1f} %, max. Drawdown {abs(max_drawdown):.1f} %."
+    lesson = "**💡 Lektion:** Der Markt ist nichtlinear. Kleine Änderungen haben oft extreme Folgen."
     return summary, params_text, story_text, cb_text, conclusion, lesson
 
-# --- Hauptbereich ---
+def generate_coach_explanation(final_return, max_vix, hft_off_days, retail_panik_verkauf, retail_start, fund_leverage_limit):
+    text = "**🔍 Was ist hier passiert?**\n\n"
+    if max_vix > 45 and hft_off_days > 3:
+        text += "⚠️ **Liquiditätskrise durch HFT-Abschaltung!** VIX > 45, HFTs abgeschaltet. Liquidität weg => Flash-Crash.\n\n"
+    elif retail_panik_verkauf > 0.35:
+        text += "🚨 **Panik-Verkäufe zu hoch!** Anleger verkaufen bei jedem Rücksetzer.\n\n"
+    elif retail_start < 0.50:
+        text += "⚠️ **Startquote zu niedrig.** Keine langfristige Kaufkraft.\n\n"
+    elif fund_leverage_limit > 1.5:
+        text += "💥 **Fonds zu stark gehebelt.** Zwangsverkäufe verschärfen den Crash.\n\n"
+    else:
+        text += "✅ **Stabile Einstellungen.** Kurs folgt Angebot und Nachfrage.\n\n"
+    if final_return < -10: text += f"📉 **Ergebnis:** {abs(final_return):.1f} % Verlust."
+    elif final_return > 10: text += f"📈 **Ergebnis:** {final_return:.1f} % Gewinn."
+    else: text += f"📊 **Ergebnis:** Seitwärts ({final_return:.1f} %)."
+    return text
+
+# --- Hauptbereich: Simulation starten ---
 if st.button("🚀 Simulation neu starten", type="primary"):
     with st.spinner("Simuliere Marktverhalten..."):
         prices, vix_history, retail_quotes, fund_quotes, hft_active_history = run_simulation(
-            tage,
-            retail_start, retail_gier_schwelle, retail_panik_schwelle, retail_panik_verkauf, retail_gier_kauf,
+            tage, retail_start, retail_gier_schwelle, retail_panik_schwelle, retail_panik_verkauf, retail_gier_kauf,
             fund_start, fund_leverage_limit, fund_vix_threshold, fund_abfluss_rate,
             hft_capital, hft_vix_abs_schaltung,
             cb_intervention_schwelle, cb_kauf_volumen, cb_vola_reduktion,
@@ -435,98 +363,47 @@ if st.button("🚀 Simulation neu starten", type="primary"):
         )
         
         st.success("Simulation abgeschlossen!")
-        
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Startkurs", f"{prices[0]:.2f}")
-        col2.metric("Endkurs", f"{prices[-1]:.2f}")
-        col3.metric("Gesamtrendite", f"{(prices[-1]/prices[0]-1)*100:.1f} %")
+        col1.metric("Start", f"{prices[0]:.2f}")
+        col2.metric("Ende", f"{prices[-1]:.2f}")
+        col3.metric("Rendite", f"{(prices[-1]/prices[0]-1)*100:.1f} %")
         col4.metric("Max. VIX", f"{max(vix_history):.1f}")
         
         st.subheader("📈 Kurs- und VIX-Verlauf")
         fig, ax = plt.subplots(2, 1, figsize=(12, 8))
-        ax[0].plot(prices, label="📊 Aktienkurs", color="blue", linewidth=1.5)
-        ax[0].set_ylabel("Kurs")
-        ax[0].legend()
-        ax[0].grid(True)
-        
-        ax[1].plot(vix_history, label="😨 VIX (Angst-Index)", color="orange", linewidth=1.5)
-        ax[1].axhline(y=30, color="red", linestyle="--", label="🔴 Panik-Schwelle")
-        ax[1].axhline(y=15, color="green", linestyle="--", label="🟢 Ruhe-Schwelle")
-        ax[1].set_ylabel("VIX")
-        ax[1].legend()
-        ax[1].grid(True)
+        ax[0].plot(prices, label="📊 Aktienkurs", color="blue"); ax[0].legend(); ax[0].grid(True)
+        ax[1].plot(vix_history, label="😨 VIX", color="orange"); ax[1].axhline(y=30, color="red", linestyle="--"); ax[1].axhline(y=15, color="green", linestyle="--"); ax[1].legend(); ax[1].grid(True)
         st.pyplot(fig)
         
-        st.subheader("🤖 Agenten-Verhalten (Aktienquoten)")
+        st.subheader("🤖 Agenten-Verhalten")
         fig2, ax2 = plt.subplots(figsize=(12, 5))
-        ax2.plot(retail_quotes, label="🟢 Privatanleger", color="green", linewidth=1.5)
-        ax2.plot(fund_quotes, label="🔴 Institutionelle Fonds", color="red", linewidth=1.5)
-        ax2.plot(hft_active_history, label="🟣 HFT aktiv (1=ja, 0=nein)", color="purple", linewidth=1, linestyle="--")
-        ax2.set_ylabel("Aktienquote / Aktivität")
-        ax2.set_xlabel("Tage")
-        ax2.legend()
-        ax2.grid(True)
+        ax2.plot(retail_quotes, label="🟢 Privatanleger", color="green")
+        ax2.plot(fund_quotes, label="🔴 Fonds", color="red")
+        ax2.plot(hft_active_history, label="🟣 HFT aktiv", color="purple", linestyle="--")
+        ax2.legend(); ax2.grid(True)
         st.pyplot(fig2)
         
         st.subheader("📊 Renditeverteilung (Fat Tails)")
-        returns = [ (prices[i] - prices[i-1]) / prices[i-1] for i in range(1, len(prices)) ]
+        returns = [(prices[i] - prices[i-1]) / prices[i-1] for i in range(1, len(prices))]
         fig3, ax3 = plt.subplots(figsize=(10, 5))
         ax3.hist(returns, bins=50, color="blue", alpha=0.7)
-        ax3.set_xlabel("Tägliche Rendite")
-        ax3.set_ylabel("Häufigkeit")
-        ax3.set_title("Die Verteilung zeigt 'Fat Tails' (extreme Ausreißer)")
+        ax3.set_xlabel("Tägliche Rendite"); ax3.grid(True)
         st.pyplot(fig3)
         
         st.subheader("📋 Marktphasen-Statistik")
-        df = pd.DataFrame({
-            "Tag": range(len(prices)),
-            "Kurs": prices,
-            "VIX": vix_history,
-            "Retail Quote": retail_quotes,
-            "Fonds Quote": fund_quotes,
-            "HFT aktiv": hft_active_history
-        })
+        df = pd.DataFrame({"Tag": range(len(prices)), "VIX": vix_history})
         df["Phase"] = "Normal"
-        df.loc[df["VIX"] < 15, "Phase"] = "🟢 Ruhe (Contango)"
-        df.loc[df["VIX"] > 30, "Phase"] = "🔴 Panik (Crash)"
-        df.loc[df["VIX"] > 50, "Phase"] = "⛔ Flash-Crash (Illiquidität)"
+        df.loc[df["VIX"] < 15, "Phase"] = "🟢 Ruhe"
+        df.loc[df["VIX"] > 30, "Phase"] = "🔴 Panik"
+        df.loc[df["VIX"] > 50, "Phase"] = "⛔ Flash-Crash"
+        st.bar_chart(df["Phase"].value_counts())
         
-        phase_counts = df["Phase"].value_counts()
-        st.bar_chart(phase_counts)
-        
-        st.subheader("📊 Letzte 50 Tage (Detail)")
-        display_df = df.tail(50).copy()
-        display_df["Kurs"] = display_df["Kurs"].apply(lambda x: f"{x:.2f}")
-        display_df["VIX"] = display_df["VIX"].apply(lambda x: f"{x:.1f}")
-        
-        def highlight_vix(val):
-            try:
-                vix_val = float(val)
-                if vix_val > 30:
-                    return "background-color: #ffcccc"
-                elif vix_val < 15:
-                    return "background-color: #ccffcc"
-            except:
-                pass
-            return ""
-            
-        st.dataframe(display_df.style.map(highlight_vix, subset=["VIX"]))
-
+        # --- Analyse & Coaching Boxen ---
         st.subheader("🧠 Analyse & Interpretation für Dich")
         
         if scenario != "Benutzerdefiniert (Manuell)":
-            if scenario == "1. Reiner Panik-Crash (HFTs schalten ab)":
-                fixed_text = "**Analyse:** Die HFTs haben bei VIX > 25 abgeschaltet. Dadurch verschwand die Liquidität schlagartig. Privatanleger verkauften massiv, ohne dass Market Maker als Gegenpartei da waren. Der Kurs fiel in einen Flash-Crash."
-            elif scenario == "2. Allmächtige Zentralbank (Fed-Put)":
-                fixed_text = "**Analyse:** Die Zentralbank griff bei jedem kleinen Kursverlust sofort ein. Jede Panik wurde sofort erstickt, was zu einer künstlichen, nicht fundamentalen Rallye führte."
-            elif scenario == "3. Leverage-Zyklus der Fonds":
-                fixed_text = "**Analyse:** Die Fonds hebeln sich stark auf. Bei einem Schock zogen die Kunden massiv Geld ab, was die Fonds zwang, Aktien zu verkaufen. Dieser 'Zwangsverkauf' verschärfte den Absturz massiv."
-            elif scenario == "4. Perfektes Contango (Ruhe)":
-                fixed_text = "**Analyse:** Die Volatilität war extrem niedrig und es gab kaum große Schocks. Die HFTs blieben dauerhaft aktiv. Es entstand ein ruhiger, stetiger Aufwärtstrend."
-            else:
-                fixed_text = "Simulation durchgeführt."
+            fixed_text = "**Analyse:** Voreingestelltes Szenario geladen."
             st.info(fixed_text)
-            
         else:
             summary, params, story, cb, conclusion, lesson = generate_user_friendly_insight(
                 prices, vix_history, retail_quotes, fund_quotes, hft_active_history,
@@ -549,11 +426,63 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             st.info(lesson)
             
             coach_text = generate_coach_explanation(
-                retail_start, retail_panik_verkauf, retail_gier_kauf,
-                fund_leverage_limit, hft_vix_abs_schaltung, cb_intervention_schwelle,
-                final_return, max_vix, max_drawdown, hft_off_days
+                final_return, max_vix, hft_off_days, retail_panik_verkauf, retail_start, fund_leverage_limit
             )
             st.warning(coach_text)
 
-else:
-    st.info("👈 Wähle ein Szenario oder stelle die Parameter manuell ein, dann klicke auf 'Simulation neu starten'.")
+# --- Wissenschaftlicher Test-Modus ---
+st.markdown("---")
+st.subheader("🧪 Wissenschaftlicher Test-Modus")
+st.markdown("Hier simuliert die App 5 Kontroll-Tests. Jeder Test wird 5x durchgeführt und gemittelt, um Zufälle auszuschließen.")
+
+if st.button("🧪 Führe Kontrolltests durch (Dauer ca. 20 Sekunden)"):
+    with st.spinner("Führe 25 Simulationen durch, um die Auswirkungen zu testen..."):
+        
+        base_params = {
+            "tage": tage, "retail_start": retail_start, "retail_gier_schwelle": retail_gier_schwelle,
+            "retail_panik_schwelle": retail_panik_schwelle, "retail_gier_kauf": retail_gier_kauf,
+            "fund_start": fund_start, "fund_leverage_limit": fund_leverage_limit,
+            "fund_vix_threshold": fund_vix_threshold, "fund_abfluss_rate": fund_abfluss_rate,
+            "hft_capital": hft_capital, "hft_vix_abs_schaltung": hft_vix_abs_schaltung,
+            "cb_intervention_schwelle": cb_intervention_schwelle, "cb_kauf_volumen": cb_kauf_volumen,
+            "cb_vola_reduktion": cb_vola_reduktion, "schock_volatilitaet": schock_volatilitaet,
+            "schock_wahrscheinlichkeit": schock_wahrscheinlichkeit, "retail_panik_verkauf": retail_panik_verkauf
+        }
+
+        test_cases = [
+            {"name": "1. Panik-Test", "param": "retail_panik_verkauf", "low": 0.1, "high": 0.5, "desc_low": "Gelassen", "desc_high": "Hektisch", "reality": "Realistisch? Ja. In Panik (z.B. 2008) verkaufen Anleger hektisch."},
+            {"name": "2. Liquiditäts-Test", "param": "hft_vix_abs_schaltung", "low": 30, "high": 60, "desc_low": "Frühe Abschaltung", "desc_high": "Spät", "reality": "Realistisch? Ja. HFTs schalten bei extremer Volatilität ab."},
+            {"name": "3. Hebel-Test", "param": "fund_leverage_limit", "low": 1.0, "high": 1.8, "desc_low": "Konservativ", "desc_high": "Riskant", "reality": "Realistisch? Ja. Hebel verstärkt Rallyes und Crashs."},
+            {"name": "4. ZB-Test", "param": "cb_intervention_schwelle", "low": 0.05, "high": 0.30, "desc_low": "Sofort (5%)", "desc_high": "Passiv (30%)", "reality": "Realistisch? Ja. Zentralbanken handeln oft proaktiv."},
+            {"name": "5. Volatilitäts-Test", "param": "schock_volatilitaet", "low": 0.005, "high": 0.04, "desc_low": "Ruhig", "desc_high": "Stürmisch", "reality": "Realistisch? Ja. Niedrige Volatilität = steigende Kurse."}
+        ]
+
+        results = []
+        for test in test_cases:
+            returns_low = []
+            for _ in range(5):
+                p_low = base_params.copy()
+                p_low[test["param"]] = test["low"]
+                p, v, r, f, h = run_simulation(**p_low)
+                returns_low.append((p[-1] - p[0]) / p[0] * 100)
+            
+            returns_high = []
+            for _ in range(5):
+                p_high = base_params.copy()
+                p_high[test["param"]] = test["high"]
+                p, v, r, f, h = run_simulation(**p_high)
+                returns_high.append((p[-1] - p[0]) / p[0] * 100)
+            
+            results.append({
+                "Test": test["name"],
+                "Niedrig (Einstellung)": f"{test['desc_low']} ({test['low']})",
+                "Hoch (Einstellung)": f"{test['desc_high']} ({test['high']})",
+                "Ø Rendite Niedrig": f"{np.mean(returns_low):.1f} %",
+                "Ø Rendite Hoch": f"{np.mean(returns_high):.1f} %",
+                "Einfluss (Differenz)": f"{np.mean(returns_high) - np.mean(returns_low):.1f} %",
+                "Realistische Erklärung": test["reality"]
+            })
+
+        st.success("Tests abgeschlossen! Hier sind die wissenschaftlichen Erkenntnisse:")
+        st.dataframe(pd.DataFrame(results), use_container_width=True)
+        st.info("Tipp: Ein negativer Einfluss (z.B. -40%) bedeutet: Der Parameter zerstört Rendite. Ein positiver Einfluss (z.B. +20%) bedeutet: Der Parameter treibt die Rallye an.")
