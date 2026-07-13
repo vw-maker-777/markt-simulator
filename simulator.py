@@ -6,38 +6,71 @@ import matplotlib.pyplot as plt
 # --- Streamlit Setup ---
 st.set_page_config(page_title="Marktpsychologie-Simulator", layout="wide")
 st.title("🧠 Marktpsychologie-Simulator")
-st.markdown("Stelle die Parameter der Marktteilnehmer ein und beobachte, wie sich Kurs und Volatilität entwickeln.")
+st.markdown("Stelle die Parameter ein, wähle ein vorgefertigtes Szenario oder klicke auf 'Simulation neu starten'.")
 
 # --- Sidebar: Parameter ---
 st.sidebar.header("⚙️ Agenten-Parameter")
 
-# Privatanleger
+# Dropdown für Szenarien
+scenario = st.sidebar.selectbox(
+    "📂 Wähle ein vorgefertigtes Szenario",
+    ("Benutzerdefiniert (Manuell)", 
+     "1. Reiner Panik-Crash (HFTs schalten ab)", 
+     "2. Allmächtige Zentralbank (Fed-Put)", 
+     "3. Leverage-Zyklus der Fonds", 
+     "4. Perfektes Contango (Ruhe)")
+)
+
+# Szenario-Logik (setzt die Regler)
+if scenario == "1. Reiner Panik-Crash (HFTs schalten ab)":
+    st.session_state["hft_vix"] = 25
+    st.session_state["panic_sell"] = 0.40
+    st.session_state["cb_intervention"] = 0.30
+elif scenario == "2. Allmächtige Zentralbank (Fed-Put)":
+    st.session_state["hft_vix"] = 50
+    st.session_state["panic_sell"] = 0.20
+    st.session_state["cb_intervention"] = 0.05
+elif scenario == "3. Leverage-Zyklus der Fonds":
+    st.session_state["hft_vix"] = 50
+    st.session_state["panic_sell"] = 0.20
+    st.session_state["cb_intervention"] = 0.15
+elif scenario == "4. Perfektes Contango (Ruhe)":
+    st.session_state["hft_vix"] = 50
+    st.session_state["panic_sell"] = 0.10
+    st.session_state["cb_intervention"] = 0.20
+else:
+    # Standardwerte für benutzerdefiniert
+    st.session_state.setdefault("hft_vix", 40)
+    st.session_state.setdefault("panic_sell", 0.30)
+    st.session_state.setdefault("cb_intervention", 0.15)
+
+# 1. Privatanleger (Retail)
 st.sidebar.subheader("1. Privatanleger (Retail)")
 retail_start = st.sidebar.slider("Start-Aktienquote", 0.0, 1.0, 0.6, 0.05)
 retail_gier_schwelle = st.sidebar.slider("Gier-Schwelle (Tagesrendite)", 0.01, 0.10, 0.03, 0.01)
 retail_panik_schwelle = st.sidebar.slider("Panik-Schwelle (Tagesrendite)", -0.15, -0.01, -0.05, 0.01)
-retail_panik_verkauf = st.sidebar.slider("Panik-Verkaufsrate (pro Tag)", 0.1, 0.5, 0.3, 0.05)
+retail_panik_verkauf = st.sidebar.slider("Panik-Verkaufsrate (pro Tag)", 0.1, 0.5, st.session_state.panic_sell, 0.05)
 retail_gier_kauf = st.sidebar.slider("Gier-Kaufrate (pro Tag)", 0.05, 0.3, 0.1, 0.02)
 
-# Institutionelle Fonds
+# 2. Institutionelle Fonds
 st.sidebar.subheader("2. Institutionelle Fonds")
 fund_start = st.sidebar.slider("Start-Aktienquote", 0.0, 1.5, 0.8, 0.05)
 fund_leverage_limit = st.sidebar.slider("Maximaler Hebel", 1.0, 2.0, 1.1, 0.1)
 fund_vix_threshold = st.sidebar.slider("VIX-Schwelle für Abflüsse", 20, 60, 30, 5)
 fund_abfluss_rate = st.sidebar.slider("Abflussrate bei VIX-Überschreitung", 0.05, 0.5, 0.2, 0.05)
 
-# HFT / Market Maker
+# 3. HFT / Market Maker
 st.sidebar.subheader("3. HFT / Market Maker")
 hft_capital = st.sidebar.number_input("Kapital (Volume)", 1000, 50000, 10000, 1000)
-hft_vix_abs_schaltung = st.sidebar.slider("VIX-Schwelle für Abschaltung", 30, 80, 40, 5)
+hft_vix_abs_schaltung = st.sidebar.slider("VIX-Schwelle für Abschaltung", 20, 80, st.session_state.hft_vix, 5)
 
-# Zentralbank
+# 4. Zentralbank
 st.sidebar.subheader("4. Zentralbank")
-cb_intervention_schwelle = st.sidebar.slider("Interventions-Schwelle (Kursverlust in 5 Tagen)", 0.05, 0.30, 0.15, 0.02)
+cb_intervention_schwelle = st.sidebar.slider("Interventions-Schwelle (Kursverlust in 5 Tagen)", 0.05, 0.30, st.session_state.cb_intervention, 0.02)
 cb_kauf_volumen = st.sidebar.slider("QE-Kaufvolumen (% des Marktes)", 0.01, 0.10, 0.05, 0.01)
 cb_vola_reduktion = st.sidebar.slider("Vola-Reduktion nach QE (%)", 0.2, 0.8, 0.30, 0.05)
 
-# Allgemeine Marktparameter
+# 5. Marktumfeld
 st.sidebar.subheader("5. Marktumfeld")
 schock_volatilitaet = st.sidebar.slider("Tägliche Schock-Volatilität (%)", 0.5, 5.0, 1.0, 0.5) / 100
 schock_wahrscheinlichkeit = st.sidebar.slider("Wahrscheinlichkeit großer Schocks (%)", 0.5, 10.0, 2.0, 0.5) / 100
@@ -151,6 +184,19 @@ def run_simulation(
     
     return prices, vix_history, retail_quotes, fund_quotes, hft_active_history
 
+# --- Funktion für die Erklärungsbox ---
+def generate_insight(retail_quotes, fund_quotes, hft_active_history, vix_history, prices, scenario_name):
+    if scenario_name == "1. Reiner Panik-Crash (HFTs schalten ab)":
+        return "**Analyse:** Die HFTs haben bei VIX > 25 abgeschaltet. Dadurch verschwand die Liquidität schlagartig. Privatanleger (Panik-Rate 0.40) verkauften massiv, ohne dass Market Maker als Gegenpartei da waren. Der Kurs fiel in einen Flash-Crash. Der Markt konnte sich erst erholen, als die HFTs wieder einschalteten."
+    elif scenario_name == "2. Allmächtige Zentralbank (Fed-Put)":
+        return "**Analyse:** Die Zentralbank griff bei jedem kleinen Kursverlust (5%) sofort ein und kaufte massiv (10% QE). Das führte zu einem extremen 'Fed-Put'. Jede Panik wurde sofort erstickt, was zu einer künstlichen, nicht fundamentalen Rallye führte. Der VIX blieb niedrig, die Kurse stiegen trotz der vielen Schocks."
+    elif scenario_name == "3. Leverage-Zyklus der Fonds":
+        return "**Analyse:** Die Fonds hebeln sich auf 150%. Bei einem Schock stieg der VIX über 25. Die Kunden zogen massiv Geld ab, was die Fonds zwang, Aktien zu verkaufen, um Liquidität zu schaffen. Dieser 'Zwangsverkauf' (Deleveraging) beschleunigte den Absturz und machte ihn tiefer, als es der ursprüngliche Schock rechtfertigte."
+    elif scenario_name == "4. Perfektes Contango (Ruhe)":
+        return "**Analyse:** Die Volatilität war extrem niedrig und es gab kaum große Schocks. Weder Privatanleger noch Fonds reagierten panisch. Die HFTs blieben dauerhaft aktiv und sorgten für stabile Liquidität. Das Ergebnis ist ein ruhiger, stetiger Aufwärtstrend ohne Extreme – der Traum eines jeden Buy-and-Hold-Anlegers."
+    else:
+        return "**Analyse:** Das ist Dein eigenes Szenario. Beobachte, wie sich die Kurven verhalten: Wenn der VIX über 30 steigt und der Kurs fällt, haben die Agenten panisch verkauft. Wenn der Kurs stabil bleibt, ist das Gleichgewicht zwischen Käufern und Verkäufern gegeben."
+
 # --- Hauptbereich ---
 if st.button("🚀 Simulation neu starten", type="primary"):
     with st.spinner("Simuliere Marktverhalten..."):
@@ -215,7 +261,6 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             "Fonds Quote": fund_quotes,
             "HFT aktiv": hft_active_history
         })
-        
         df["Phase"] = "Normal"
         df.loc[df["VIX"] < 15, "Phase"] = "🟢 Ruhe (Contango)"
         df.loc[df["VIX"] > 30, "Phase"] = "🔴 Panik (Crash)"
@@ -223,24 +268,29 @@ if st.button("🚀 Simulation neu starten", type="primary"):
         
         phase_counts = df["Phase"].value_counts()
         st.bar_chart(phase_counts)
-    st.subheader("📊 Letzte 50 Tage (Detail)")
-    # Daten für die Tabelle vorbereiten
-    display_df = df.tail(50).copy()
-    display_df["Kurs"] = display_df["Kurs"].apply(lambda x: f"{x:.2f}")
-    display_df["VIX"] = display_df["VIX"].apply(lambda x: f"{x:.1f}")
-    
-    # Farben für die VIX-Spalte hinzufügen
-    def highlight_vix(val):
-        try:
-            vix_val = float(val)
-            if vix_val > 30:
-                return "background-color: #ffcccc"
-            elif vix_val < 15:
-                return "background-color: #ccffcc"
-        except:
-            pass
-        return ""
         
-    st.dataframe(display_df.style.map(highlight_vix, subset=["VIX"]))
+        st.subheader("📊 Letzte 50 Tage (Detail)")
+        display_df = df.tail(50).copy()
+        display_df["Kurs"] = display_df["Kurs"].apply(lambda x: f"{x:.2f}")
+        display_df["VIX"] = display_df["VIX"].apply(lambda x: f"{x:.1f}")
+        
+        def highlight_vix(val):
+            try:
+                vix_val = float(val)
+                if vix_val > 30:
+                    return "background-color: #ffcccc"
+                elif vix_val < 15:
+                    return "background-color: #ccffcc"
+            except:
+                pass
+            return ""
+            
+        st.dataframe(display_df.style.map(highlight_vix, subset=["VIX"]))
+
+        # --- Erklärungsbox ---
+        st.subheader("🧠 Interpretation der Marktdynamik")
+        explanation = generate_insight(retail_quotes, fund_quotes, hft_active_history, vix_history, prices, scenario)
+        st.info(explanation)
+
 else:
-    st.info("👈 Stelle die Parameter in der Sidebar ein und klicke auf 'Simulation neu starten'.")
+    st.info("👈 Wähle ein Szenario oder stelle die Parameter manuell ein, dann klicke auf 'Simulation neu starten'.")
