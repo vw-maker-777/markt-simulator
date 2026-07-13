@@ -330,6 +330,12 @@ def generate_user_friendly_insight(
 
     conclusion = f"**📌 Fazit für Dein Portfolio:** Rendite **{final_return:.1f} %**, max. Drawdown **{abs(max_drawdown):.1f} %**."
 
+    # --- KORREKTUR 2: Variable cb_interventions für die Lektion wiederhergestellt ---
+    cb_interventions = 0
+    for i in range(1, len(prices)-1):
+        if prices[i] > prices[i-1] * 1.03:
+            cb_interventions += 1
+
     lesson = "**💡 Was Du heute lernen kannst:**\n\n"
     if hft_off_days > 5: lesson += "Wenn HFTs abgeschaltet werden, verschwindet die Liquidität. Ein Markt ohne Käufer ist wie ein Auto ohne Benzin – er steht still und stürzt ab. **Merke: Liquidität ist das Blut des Marktes.**"
     elif fund_leverage_limit > 1.5 and max_drawdown < -15: lesson += "Hoher Hebel mag in Rallyes verlockend sein, aber in Crashs wird er zur tödlichen Falle. Die Fonds mussten verkaufen, weil sie ihre Kredite bedienen mussten – das hat den Absturz massiv verstärkt. **Merke: Hebel verstärkt Gewinne, aber auch Verluste.**"
