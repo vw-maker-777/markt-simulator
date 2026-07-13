@@ -337,26 +337,16 @@ def generate_user_friendly_insight(
 def generate_coach_explanation(final_return, max_vix, hft_off_days, retail_panik_verkauf, retail_start, fund_leverage_limit):
     text = "**🔍 Was ist hier passiert?**\n\n"
     
-    # NEU: Priorität 0 - Wenn das Ergebnis eine Katastrophe ist!
     if final_return < -15:
-        text += "💥 **Schwerer Crash trotz guter Einstellungen!** Die Wahrscheinlichkeit (2% Schock) hat einen extremen 'Fat Tail' getroffen. Selbst moderate Panik (0.3) und aktive HFTs haben den Sturz nicht aufhalten können. Der Simulator zeigt hier eine realistische, aber seltene Worst-Case-Situation.\n\n"
-        
-    # Priorität 1 - Wenn HFTs ausgefallen sind und der VIX extrem war
+        text += "💥 **Schwerer Crash trotz guter Einstellungen!** Die Wahrscheinlichkeit (2% Schock) hat einen extremen 'Fat Tail' getroffen. Selbst moderate Panik und aktive HFTs haben den Sturz nicht aufhalten können. Der Simulator zeigt hier eine realistische, aber seltene Worst-Case-Situation.\n\n"
     elif max_vix > 45 and hft_off_days > 3:
         text += "⚠️ **Liquiditätskrise durch HFT-Abschaltung!** Der VIX schoss über 45, die HFTs verließen den Markt. Ohne Liquidität brach der Markt zusammen.\n\n"
-        
-    # Priorität 2 - Wenn Anleger panisch waren
     elif retail_panik_verkauf > 0.35:
         text += "🚨 **Problem: Privatanleger sind zu panisch.** Die Panik-Verkaufsrate ist hoch. Sie verkaufen bei jedem kleinen Rücksetzer massiv.\n\n"
-        
-    # Priorität 3 - Wenn Startquote zu niedrig
     elif retail_start < 0.50:
         text += "⚠️ **Problem: Start-Aktienquote zu niedrig.** Zu wenig langfristige Kaufkraft im Markt.\n\n"
-        
-    # Priorität 4 - Wenn Fonds zu stark hebeln
     elif fund_leverage_limit > 1.5:
         text += "💥 **Problem: Fonds zu stark gehebelt.** Zwangsverkäufe verschärfen den Absturz.\n\n"
-        
     else:
         text += "✅ **Stabile Einstellungen.** Die Parameter sind gut gewählt. Der Kurs folgt Angebot und Nachfrage.\n\n"
     
@@ -420,6 +410,14 @@ if st.button("🚀 Simulation neu starten", type="primary"):
     }
     with st.spinner("Simuliere Marktverhalten..."):
         prices, vix_history, retail_quotes, fund_quotes, hft_active_history = run_simulation(**params)
+        
+        # --- NEU: Daten für den DeepSeek-Export speichern ---
+        st.session_state['last_params'] = params
+        st.session_state['last_prices'] = prices
+        st.session_state['last_vix_history'] = vix_history
+        st.session_state['last_hft_active_history'] = hft_active_history
+        st.session_state['last_scenario'] = scenario
+        st.session_state['simulation_available'] = True
         
         st.success("Simulation abgeschlossen!")
         col1, col2, col3, col4 = st.columns(4)
@@ -494,25 +492,23 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             st.info(lesson)
             st.warning(coach_text)
 
-# --- DeepSeek Export Button ---
+# --- NEU: DeepSeek Export Button (OHNE neue Simulation) ---
 if st.button("🧐 DeepSeek-Plausibilitäts-Check vorbereiten"):
-    with st.spinner("Erstelle Protokoll für DeepSeek..."):
-        params = {
-            'tage': tage, 'retail_start': retail_start, 'retail_gier_schwelle': retail_gier_schwelle,
-            'retail_panik_schwelle': retail_panik_schwelle, 'retail_panik_verkauf': retail_panik_verkauf,
-            'retail_gier_kauf': retail_gier_kauf, 'fund_start': fund_start, 'fund_leverage_limit': fund_leverage_limit,
-            'fund_vix_threshold': fund_vix_threshold, 'fund_abfluss_rate': fund_abfluss_rate,
-            'hft_capital': hft_capital, 'hft_vix_abs_schaltung': hft_vix_abs_schaltung,
-            'cb_intervention_schwelle': cb_intervention_schwelle, 'cb_kauf_volumen': cb_kauf_volumen,
-            'cb_vola_reduktion': cb_vola_reduktion, 'schock_volatilitaet': schock_volatilitaet,
-            'schock_wahrscheinlichkeit': schock_wahrscheinlichkeit
-        }
-        prices, vix_history, retail_quotes, fund_quotes, hft_active_history = run_simulation(**params)
+    if 'simulation_available' in st.session_state and st.session_state['simulation_available']:
+        # Daten aus der letzten Simulation holen
+        params = st.session_state['last_params']
+        prices = st.session_state['last_prices']
+        vix_history = st.session_state['last_vix_history']
+        hft_active_history = st.session_state['last_hft_active_history']
+        scenario = st.session_state['last_scenario']
+        
         export_text = generate_deepseek_export(params, prices, vix_history, hft_active_history, scenario)
         
         st.subheader("📄 DeepSeek-Protokoll (Kopieren & Einfügen)")
         st.info("Kopiere den folgenden Text, füge ihn in einen neuen Chat mit DeepSeek ein und frage: 'Bitte prüfe diese Simulation auf Plausibilität und Logik!'")
         st.code(export_text, language="text")
+    else:
+        st.warning("⚠️ Bitte führe zuerst eine Simulation durch (klicke auf 'Simulation neu starten'), bevor Du das Protokoll erstellst!")
 
 # --- Experten-Modus (Einklappbar) ---
 with st.expander("🧪 Erweiterte Tests für Experten (Klicke hier)"):
