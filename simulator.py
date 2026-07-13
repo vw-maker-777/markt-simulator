@@ -218,12 +218,18 @@ def run_simulation(
         else:
             ret_5d = 0
         
+        # --- Fix 1: Privatanleger kaufen langfristig mehr (statt Rückkehr zu Start) ---
+        target_retail = min(1.0, retail_start + (day / tage) * 0.05)  # Leicht steigendes Ziel über die Zeit
+        
         if ret_5d < retail_panik_schwelle:
             retail_quote = max(0, retail_quote - retail_panik_verkauf)
         elif ret_5d > retail_gier_schwelle:
             retail_quote = min(1, retail_quote + retail_gier_kauf)
         else:
-            retail_quote += 0.02 * (retail_start - retail_quote)
+            retail_quote += 0.02 * (target_retail - retail_quote)
+        
+        # --- Fix 2: Fonds kaufen ebenfalls mehr über die Zeit ---
+        target_fund = min(fund_leverage_limit, fund_start + (day / tage) * 0.05)
         
         flows = 0
         if vix > fund_vix_threshold:
@@ -234,7 +240,7 @@ def run_simulation(
         elif ret_5d < -0.05:
             fund_quote = max(0.4, fund_quote - 0.1)
         else:
-            fund_quote += 0.01 * (fund_start - fund_quote)
+            fund_quote += 0.01 * (target_fund - fund_quote)
         
         fund_volume = volume_fund * (1 + flows)
         fund_volume = max(0, fund_volume)
@@ -258,7 +264,8 @@ def run_simulation(
         
         net_demand = retail_net + fund_net
         if liquidity > 0:
-            price_change = 0.0002 + net_demand / (liquidity + 1000)
+            # --- Fix 3: Drift von 0.02% auf 0.05% erhöht (mehr Aufwärtstrend) ---
+            price_change = 0.0005 + net_demand / (liquidity + 1000)
         else:
             if net_demand < 0:
                 price_change = -0.04
@@ -288,7 +295,7 @@ def run_simulation(
     
     return prices, vix_history, retail_quotes, fund_quotes, hft_active_history
 
-# --- NEU: Die verständliche Analyse-Funktion mit Lektionen ---
+# --- Analyse-Funktion ---
 def generate_user_friendly_insight(
     prices, vix_history, retail_quotes, fund_quotes, hft_active_history,
     retail_start, retail_panik_verkauf, retail_gier_kauf,
@@ -303,7 +310,6 @@ def generate_user_friendly_insight(
     avg_fund = np.mean(fund_quotes)
     max_drawdown = min([(p - prices[0]) / prices[0] for p in prices]) * 100
     
-    # 1. Das Kurz-Fazit
     if final_return > 10:
         summary = f"🚀 **Starke Rallye:** Der Markt ist um **{final_return:.1f} %** gestiegen."
     elif final_return > 2:
@@ -315,7 +321,6 @@ def generate_user_friendly_insight(
     else:
         summary = f"💥 **Schwerer Crash:** Der Markt brach um **{abs(final_return):.1f} %** ein."
 
-    # 2. Parameter in Klartext
     params_text = "**⚙️ Wie waren die Marktteilnehmer eingestellt?**\n\n"
     params_text += f"• **🟢 Privatanleger:** Startquote {retail_start*100:.0f}%, Panik-Verkauf {retail_panik_verkauf:.1f}. "
     if retail_panik_verkauf > 0.3:
@@ -332,7 +337,6 @@ def generate_user_friendly_insight(
     params_text += f"• **🟣 HFTs:** Abschaltung bei VIX > {hft_vix_abs_schaltung}.\n"
     params_text += f"• **🏦 Zentralbank:** Eingriff ab {cb_intervention_schwelle:.0%} Kursverlust.\n\n"
 
-    # 3. Die Geschichte
     story_text = "**📖 Die Geschichte dieser Simulation:**\n\n"
     if max_vix > 45:
         story_text += "Es gab eine **extreme Panik-Phase** (VIX > 45). "
@@ -351,7 +355,6 @@ def generate_user_friendly_insight(
     if hft_off_days > 0:
         story_text += "Für eine Weile verschwand die Liquidität, weil die HFTs den Markt verließen. "
 
-    # 4. Die Zentralbank
     cb_text = ""
     cb_interventions = 0
     for i in range(1, len(prices)-1):
@@ -363,12 +366,9 @@ def generate_user_friendly_insight(
     else:
         cb_text = f"**🏦 Rolle der Zentralbank:** Die Notenbank griff **nicht** ein. Der Markt wurde sich selbst überlassen."
 
-    # 5. Fazit
     conclusion = f"**📌 Fazit für Dein Portfolio:** Rendite **{final_return:.1f} %**, max. Drawdown **{abs(max_drawdown):.1f} %**."
 
-    # 6. NEU: Die Lektion des Tages (Learnings)
     lesson = "**💡 Was Du heute lernen kannst:**\n\n"
-    
     if hft_off_days > 5:
         lesson += "Wenn HFTs abgeschaltet werden, verschwindet die Liquidität. Ein Markt ohne Käufer ist wie ein Auto ohne Benzin – er steht still und stürzt ab. **Merke: Liquidität ist das Blut des Marktes.**"
     elif fund_leverage_limit > 1.5 and max_drawdown < -15:
@@ -402,7 +402,6 @@ if st.button("🚀 Simulation neu starten", type="primary"):
         col3.metric("Gesamtrendite", f"{(prices[-1]/prices[0]-1)*100:.1f} %")
         col4.metric("Max. VIX", f"{max(vix_history):.1f}")
         
-        # --- CHART 1: KURS & VIX (mit Emojis) ---
         st.subheader("📈 Kurs- und VIX-Verlauf")
         fig, ax = plt.subplots(2, 1, figsize=(12, 8))
         ax[0].plot(prices, label="📊 Aktienkurs", color="blue", linewidth=1.5)
@@ -418,7 +417,6 @@ if st.button("🚀 Simulation neu starten", type="primary"):
         ax[1].grid(True)
         st.pyplot(fig)
         
-        # --- CHART 2: AGENTEN (mit Emojis) ---
         st.subheader("🤖 Agenten-Verhalten (Aktienquoten)")
         fig2, ax2 = plt.subplots(figsize=(12, 5))
         ax2.plot(retail_quotes, label="🟢 Privatanleger", color="green", linewidth=1.5)
@@ -430,7 +428,6 @@ if st.button("🚀 Simulation neu starten", type="primary"):
         ax2.grid(True)
         st.pyplot(fig2)
         
-        # --- CHART 3: FAT TAILS ---
         st.subheader("📊 Renditeverteilung (Fat Tails)")
         returns = [ (prices[i] - prices[i-1]) / prices[i-1] for i in range(1, len(prices)) ]
         fig3, ax3 = plt.subplots(figsize=(10, 5))
@@ -440,7 +437,6 @@ if st.button("🚀 Simulation neu starten", type="primary"):
         ax3.set_title("Die Verteilung zeigt 'Fat Tails' (extreme Ausreißer)")
         st.pyplot(fig3)
         
-        # --- MARKTPHASEN ---
         st.subheader("📋 Marktphasen-Statistik")
         df = pd.DataFrame({
             "Tag": range(len(prices)),
@@ -458,7 +454,6 @@ if st.button("🚀 Simulation neu starten", type="primary"):
         phase_counts = df["Phase"].value_counts()
         st.bar_chart(phase_counts)
         
-        # --- LETZTE 50 TAGE ---
         st.subheader("📊 Letzte 50 Tage (Detail)")
         display_df = df.tail(50).copy()
         display_df["Kurs"] = display_df["Kurs"].apply(lambda x: f"{x:.2f}")
@@ -477,7 +472,6 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             
         st.dataframe(display_df.style.map(highlight_vix, subset=["VIX"]))
 
-        # --- ERKLÄRUNGSBOX + LEKTION ---
         st.subheader("🧠 Analyse & Interpretation für Dich")
         
         if scenario != "Benutzerdefiniert (Manuell)":
@@ -507,8 +501,6 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             st.markdown(story)
             st.markdown(cb)
             st.markdown(conclusion)
-            
-            # Die neue Lektion
             st.info(lesson)
 
 else:
