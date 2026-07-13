@@ -218,8 +218,7 @@ def run_simulation(
         else:
             ret_5d = 0
         
-        # --- Fix 1: Privatanleger kaufen langfristig mehr (statt Rückkehr zu Start) ---
-        target_retail = min(1.0, retail_start + (day / tage) * 0.05)  # Leicht steigendes Ziel über die Zeit
+        target_retail = min(1.0, retail_start + (day / tage) * 0.05)
         
         if ret_5d < retail_panik_schwelle:
             retail_quote = max(0, retail_quote - retail_panik_verkauf)
@@ -228,7 +227,6 @@ def run_simulation(
         else:
             retail_quote += 0.02 * (target_retail - retail_quote)
         
-        # --- Fix 2: Fonds kaufen ebenfalls mehr über die Zeit ---
         target_fund = min(fund_leverage_limit, fund_start + (day / tage) * 0.05)
         
         flows = 0
@@ -264,7 +262,6 @@ def run_simulation(
         
         net_demand = retail_net + fund_net
         if liquidity > 0:
-            # --- Fix 3: Drift von 0.02% auf 0.05% erhöht (mehr Aufwärtstrend) ---
             price_change = 0.0005 + net_demand / (liquidity + 1000)
         else:
             if net_demand < 0:
@@ -295,7 +292,41 @@ def run_simulation(
     
     return prices, vix_history, retail_quotes, fund_quotes, hft_active_history
 
-# --- Analyse-Funktion ---
+# --- NEU: Der "KI-Coach" (Dynamische Erklärung, die wie ich klingt) ---
+def generate_coach_explanation(
+    retail_start, retail_panik_verkauf, retail_gier_kauf,
+    fund_leverage_limit, hft_vix_abs_schaltung, cb_intervention_schwelle,
+    final_return, max_vix, max_drawdown
+):
+    text = "**🔍 Was ist hier passiert?**\n\n"
+    
+    # 1. Analyse der Panik-Rate
+    if retail_panik_verkauf > 0.30:
+        text += "🚨 **Problem 1: Die Privatanleger sind viel zu panisch.** Du hast die Panik-Verkaufsrate sehr hoch eingestellt. "
+        text += "Das führt dazu, dass sie bei jedem kleinen Rücksetzer massiv verkaufen. Dieser Verkaufsdruck summiert sich über die Zeit und drückt den Kurs nach unten – auch wenn der Markt eigentlich steigen sollte.\n\n"
+    elif retail_start < 0.50:
+        text += "⚠️ **Problem 2: Die Start-Aktienquote ist zu niedrig.** Die Anleger starten mit zu wenig Aktien. "
+        text += "Da sie bei jedem Rücksetzer zusätzlich verkaufen, fehlt dem Markt die langfristige Kaufkraft.\n\n"
+    elif fund_leverage_limit > 1.5:
+        text += "💥 **Problem 3: Die Fonds sind übermäßig gehebelt.** Ein Hebel über 1.5 ist in diesem Simulator extrem riskant. "
+        text += "Sobald der Kurs fällt, müssen die Fonds Aktien verkaufen, um ihre Kredite zu bedienen – das verschärft den Absturz massiv.\n\n"
+    else:
+        text += "✅ **Gute Einstellungen!** Deine Panik-Rate ist niedrig und die Startquote ist optimistisch. "
+        text += "Das führt in der Regel zu einem stabilen Aufwärtstrend. Wenn der Kurs dennoch gefallen ist, lag es wahrscheinlich an einem zufällig großen Schock (dem 'Fat Tail').\n\n"
+    
+    # 2. Zusammenfassung des Ergebnisses
+    if final_return < -10:
+        text += f"📉 **Das Ergebnis:** Der Markt brach um **{abs(final_return):.1f} %** ein. "
+        if max_vix > 50:
+            text += "Der VIX (Angst-Index) schoss über 50, was auf einen extremen Flash-Crash hindeutet. "
+    elif final_return > 10:
+        text += f"📈 **Das Ergebnis:** Der Markt stieg um **{final_return:.1f} %**. Eine starke Rallye!"
+    else:
+        text += f"📊 **Das Ergebnis:** Der Markt bewegte sich seitwärts mit einer Rendite von **{final_return:.1f} %**."
+    
+    return text
+
+# --- Analyse-Funktion (bleibt gleich) ---
 def generate_user_friendly_insight(
     prices, vix_history, retail_quotes, fund_quotes, hft_active_history,
     retail_start, retail_panik_verkauf, retail_gier_kauf,
@@ -475,6 +506,7 @@ if st.button("🚀 Simulation neu starten", type="primary"):
         st.subheader("🧠 Analyse & Interpretation für Dich")
         
         if scenario != "Benutzerdefiniert (Manuell)":
+            # Falls ein vorgefertigtes Szenario gewählt wurde
             if scenario == "1. Reiner Panik-Crash (HFTs schalten ab)":
                 fixed_text = "**Analyse:** Die HFTs haben bei VIX > 25 abgeschaltet. Dadurch verschwand die Liquidität schlagartig. Privatanleger verkauften massiv, ohne dass Market Maker als Gegenpartei da waren. Der Kurs fiel in einen Flash-Crash."
             elif scenario == "2. Allmächtige Zentralbank (Fed-Put)":
@@ -488,6 +520,7 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             st.info(fixed_text)
             
         else:
+            # Wenn "Manuell", die volle Analyse plus den KI-Coach
             summary, params, story, cb, conclusion, lesson = generate_user_friendly_insight(
                 prices, vix_history, retail_quotes, fund_quotes, hft_active_history,
                 retail_start, retail_panik_verkauf, retail_gier_kauf,
@@ -496,12 +529,24 @@ if st.button("🚀 Simulation neu starten", type="primary"):
                 schock_volatilitaet, schock_wahrscheinlichkeit, scenario
             )
             
+            final_return = (prices[-1] - prices[0]) / prices[0] * 100
+            max_vix = max(vix_history)
+            max_drawdown = min([(p - prices[0]) / prices[0] for p in prices]) * 100
+            
             st.success(summary)
             st.markdown(params)
             st.markdown(story)
             st.markdown(cb)
             st.markdown(conclusion)
             st.info(lesson)
+            
+            # --- NEU: Der KI-Coach erscheint hier ---
+            coach_text = generate_coach_explanation(
+                retail_start, retail_panik_verkauf, retail_gier_kauf,
+                fund_leverage_limit, hft_vix_abs_schaltung, cb_intervention_schwelle,
+                final_return, max_vix, max_drawdown
+            )
+            st.warning(coach_text)
 
 else:
     st.info("👈 Wähle ein Szenario oder stelle die Parameter manuell ein, dann klicke auf 'Simulation neu starten'.")
