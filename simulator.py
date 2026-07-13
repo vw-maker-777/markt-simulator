@@ -327,7 +327,7 @@ def generate_user_friendly_insight(
 
     if hft_off_days > 0: story_text += "Die Liquidität verschwand, aber der Kurs folgte weiterhin dem Angebot und der Nachfrage der Anleger. "
 
-    # --- KORREKTUR 1: Zentralbank-Erkennung basierend auf tatsächlichem Drawdown ---
+    # --- Zentralbank-Erkennung basierend auf tatsächlichem Drawdown ---
     cb_text = ""
     if max_drawdown < -cb_intervention_schwelle * 100:
         cb_text = f"**🏦 Rolle der Zentralbank:** Die Notenbank griff ein (da der Drawdown von {abs(max_drawdown):.1f}% ihre Eingriffsschwelle von {cb_intervention_schwelle*100:.0f}% überschritt) und verhinderte den totalen Zusammenbruch."
@@ -535,7 +535,7 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             else:
                 dynamic_text += f"Sie haben den Hebel auf **{fund_leverage_limit:.1f}** eingestellt."
 
-        # --- SZENARIO 4: RUHIGER AUFWÄRTSTREND (MIT VOLATILITÄTS-CHECK) ---
+        # --- SZENARIO 4: RUHIGER AUFWÄRTSTREND (MIT VOLATILITÄTS- & DRAWDOWN-CHECK) ---
         elif scenario == "4. Ruhiger, stetiger Aufwärtstrend":
             dynamic_text = f"**Analyse:** Dieses Szenario ist darauf ausgelegt, einen ruhigen, stetigen Aufwärtstrend mit niedriger Panik und stabilen HFTs zu zeigen. "
             
@@ -544,7 +544,11 @@ if st.button("🚀 Simulation neu starten", type="primary"):
                 dynamic_text += f"🚨 **Achtung:** Sie haben die tägliche Volatilität auf **{schock_volatilitaet*100:.1f} %** erhöht. Damit handelt es sich **nicht mehr um einen ruhigen Markt**, sondern um einen extrem stürmischen Markt. Die hohe Volatilität hat den VIX auf {max_vix:.1f} getrieben, die HFTs für {hft_off_days} Tage abgeschaltet und zu einem Drawdown von {abs(max_drawdown):.1f} % geführt. Die erzielte Endrendite von {final_return:.1f} % ist daher das Ergebnis extremer Ausschläge, nicht einer sanften Rallye."
             
             elif retail_panik_verkauf <= 0.05 and hft_vix_abs_schaltung >= 60:
-                dynamic_text += f"Da Sie die Panik-Rate niedrig ({retail_panik_verkauf:.1f}) und die HFT-Schwelle hoch ({hft_vix_abs_schaltung}) belassen haben, verläuft der Markt erwartungsgemäß stabil."
+                # NEU: Prüfe den tatsächlichen Verlauf!
+                if abs(max_drawdown) > 10:
+                    dynamic_text += f"Da Sie die Panik-Rate niedrig ({retail_panik_verkauf:.1f}) und die HFT-Schwelle hoch ({hft_vix_abs_schaltung}) belassen haben, sollten die Parameter eigentlich zu einem stabilen Aufwärtstrend führen. In dieser speziellen Simulation wurde der Markt jedoch von einem extrem seltenen, aber massiven Zufallsschock (Fat Tail) getroffen, der zu einem Drawdown von {abs(max_drawdown):.1f} % führte. Trotz der guten Einstellungen zeigt der Simulator hier eine realistische Worst-Case-Abweichung."
+                else:
+                    dynamic_text += f"Da Sie die Panik-Rate niedrig ({retail_panik_verkauf:.1f}) und die HFT-Schwelle hoch ({hft_vix_abs_schaltung}) belassen haben, verläuft der Markt erwartungsgemäß stabil."
             else:
                 dynamic_text += f"Sie haben jedoch die Panik-Rate auf {retail_panik_verkauf:.1f} oder die HFT-Schwelle auf {hft_vix_abs_schaltung} verändert, was die Dynamik dieses ruhigen Szenarios leicht beeinflusst hat."
         else:
