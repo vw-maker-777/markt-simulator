@@ -224,11 +224,25 @@ if st.button("🚀 Simulation neu starten", type="primary"):
         phase_counts = df["Phase"].value_counts()
         st.bar_chart(phase_counts)
         
-        st.subheader("📊 Letzte 50 Tage (Detail)")
-        st.dataframe(df.tail(50).style.format({"Kurs": "{:.2f}", "VIX": "{:.1f}"}).applymap(
-            lambda x: "background-color: #ffcccc" if x > 30 else "background-color: #ccffcc" if x < 15 else "",
-            subset=["VIX"]
-        ))
+st.subheader("📊 Letzte 50 Tage (Detail)")
+# Daten für die Tabelle vorbereiten
+display_df = df.tail(50).copy()
+display_df["Kurs"] = display_df["Kurs"].apply(lambda x: f"{x:.2f}")
+display_df["VIX"] = display_df["VIX"].apply(lambda x: f"{x:.1f}")
+
+# Farben für die VIX-Spalte hinzufügen
+def highlight_vix(val):
+    try:
+        vix_val = float(val)
+        if vix_val > 30:
+            return "background-color: #ffcccc"
+        elif vix_val < 15:
+            return "background-color: #ccffcc"
+    except:
+        pass
+    return ""
+    
+st.dataframe(display_df.style.applymap(highlight_vix, subset=["VIX"]))
 
 else:
     st.info("👈 Stelle die Parameter in der Sidebar ein und klicke auf 'Simulation neu starten'.")
