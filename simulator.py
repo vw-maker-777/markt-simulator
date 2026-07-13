@@ -180,7 +180,7 @@ else:
 tage = st.sidebar.slider("Simulations-Tage", 100, 2000, 500, 50)
 st.sidebar.caption(f"📌 *Simuliert {tage} Handelstage (ca. {tage/250:.1f} Jahre).*")
 
-# --- Simulations-Funktion ---
+# --- Simulations-Funktion (NEU: OHNE künstlichen Zwangs-Crash) ---
 def run_simulation(
     tage,
     retail_start, retail_gier_schwelle, retail_panik_schwelle, retail_panik_verkauf, retail_gier_kauf,
@@ -189,7 +189,7 @@ def run_simulation(
     cb_intervention_schwelle, cb_kauf_volumen, cb_vola_reduktion,
     schock_volatilitaet, schock_wahrscheinlichkeit
 ):
-    
+    # Initialisierung
     price = 100.0
     vix = 18.0
     prices = [price]
@@ -208,18 +208,20 @@ def run_simulation(
     
     for day in range(tage):
         
+        # 1. Exogener Schock
         if np.random.rand() < schock_wahrscheinlichkeit:
             shock = np.random.normal(-0.05, 0.02)
         else:
             shock = np.random.normal(0, schock_volatilitaet)
         
+        # 2. Rendite 5-Tage
         if len(prices) >= 5:
             ret_5d = (prices[-1] - prices[-5]) / prices[-5]
         else:
             ret_5d = 0
         
+        # 3. Privatanleger Verhalten (Mean Reversion + Gier/Panik)
         target_retail = min(1.0, retail_start + (day / tage) * 0.05)
-        
         if ret_5d < retail_panik_schwelle:
             retail_quote = max(0, retail_quote - retail_panik_verkauf)
         elif ret_5d > retail_gier_schwelle:
@@ -227,8 +229,8 @@ def run_simulation(
         else:
             retail_quote += 0.02 * (target_retail - retail_quote)
         
+        # 4. Fonds Verhalten (Hebel + Abflüsse)
         target_fund = min(fund_leverage_limit, fund_start + (day / tage) * 0.05)
-        
         flows = 0
         if vix > fund_vix_threshold:
             flows = -fund_abfluss_rate
@@ -243,6 +245,7 @@ def run_simulation(
         fund_volume = volume_fund * (1 + flows)
         fund_volume = max(0, fund_volume)
         
+        # 5. HFTs / Market Maker
         vix_dec = vix / 100
         if vix_dec > hft_vix_abs_schaltung / 100:
             hft_active = False
@@ -252,33 +255,33 @@ def run_simulation(
             hft_volume = int(hft_capital / (vix_dec ** 2 + 0.001))
             hft_volume = max(100, hft_volume)
         
+        # 6. Netto-Demand (Angebot und Nachfrage)
         retail_net = (retail_quote - retail_start) * volume_retail
         fund_net = (fund_quote - fund_start) * fund_volume
-        
-        if hft_active:
-            liquidity = hft_volume
-        else:
-            liquidity = 0
-        
         net_demand = retail_net + fund_net
-        if liquidity > 0:
-            price_change = 0.0005 + net_demand / (liquidity + 1000)
-        else:
-            # --- WICHTIGE KORREKTUR: Flash-Crash von -4% auf -0.5% pro Tag gesenkt ---
-            if net_demand < 0:
-                price_change = -0.005  # früher -0.04 (Total-Crash)
-            else:
-                price_change = 0
         
+        # 7. Preisänderung (NUR basierend auf Nachfrage)
+        # Drift von 0.02% pro Tag sorgt für langfristigen Aufwärtstrend
+        price_change = 0.0002 + net_demand / (volume_retail + volume_fund + 1000)
         price_change += shock
+        
+        # 8. Sprung bei Illiquidität (HFTs aus)
+        # Wenn HFTs aus sind, wird der Spread extremer, aber der Kurs folgt nur dem Angebot
+        if not hft_active:
+            # Kein künstlicher Crash! Nur die Hälfte des Volumens ist da, um den Demand zu bedienen
+            price_change = 0.0002 + net_demand / 500
+        
+        # 9. Neuer Preis
         price = price * (1 + price_change)
         price = max(1, price)
         prices.append(price)
         
+        # 10. VIX Berechnung (Anstieg bei großen Kursänderungen)
         vix = 15 + np.abs(price_change) * 500 + np.random.normal(0, 2)
         vix = max(10, min(80, vix))
         vix_history.append(vix)
         
+        # 11. Zentralbank Intervention
         if len(prices) >= 5:
             drop_5d = (prices[-5] - prices[-1]) / prices[-5]
             if drop_5d > cb_intervention_schwelle:
@@ -287,6 +290,7 @@ def run_simulation(
                 vix = vix * (1 - cb_vola_reduktion)
                 vix_history[-1] = vix
         
+        # 12. Agenten-Historie speichern
         retail_quotes.append(retail_quote)
         fund_quotes.append(fund_quote)
         hft_active_history.append(1 if hft_active else 0)
@@ -371,7 +375,7 @@ def generate_user_friendly_insight(
     if max_vix > 45:
         story_text += "Es gab eine **extreme Panik-Phase** (VIX > 45). "
         if hft_off_days > 5:
-            story_text += f"Die HFTs schalteten für {hft_off_days} Tage ab, der Handel brach zusammen. "
+            story_text += f"Die HFTs schalteten für {hft_off_days} Tage ab. Dadurch wurde der Markt extrem illiquide und der Spread explodierte. "
     elif max_vix > 25:
         story_text += "Es gab eine **moderate Panik-Phase**. "
     else:
@@ -383,7 +387,7 @@ def generate_user_friendly_insight(
         story_text += "Die Fonds agierten sehr defensiv und stabilisierten den Markt. "
 
     if hft_off_days > 0:
-        story_text += "Für eine Weile verschwand die Liquidität, weil die HFTs den Markt verließen. "
+        story_text += "Die Liquidität verschwand, aber der Kurs folgte weiterhin dem Angebot und der Nachfrage der Anleger. "
 
     cb_text = ""
     cb_interventions = 0
