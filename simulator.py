@@ -269,7 +269,7 @@ def run_simulation(**kwargs):
     
     return prices, vix_history, retail_quotes, fund_quotes, hft_active_history
 
-# --- Analysen & Erklärungen (Wiederhergestellt & Ausführlich) ---
+# --- Analysen & Erklärungen ---
 def generate_user_friendly_insight(
     prices, vix_history, retail_quotes, fund_quotes, hft_active_history,
     retail_start, retail_panik_verkauf, retail_gier_kauf,
@@ -345,6 +345,44 @@ def generate_coach_explanation(retail_panik_verkauf, max_vix, hft_off_days, fina
     else: text += f"📊 **Das Ergebnis:** Der Markt bewegte sich seitwärts mit einer Rendite von **{final_return:.1f} %**."
     return text
 
+# --- NEUE HILFSFUNKTION: DeepSeek-Export ---
+def generate_deepseek_export(params, prices, vix_history, hft_active_history, scenario):
+    final_return = (prices[-1] - prices[0]) / prices[0] * 100
+    max_vix = max(vix_history)
+    hft_off_days = sum(1 for x in hft_active_history if x == 0)
+    max_drawdown = min([(p - prices[0]) / prices[0] for p in prices]) * 100
+    
+    text = "=== DEEPSEEK PLAUSIBILITÄTS-CHECK PROTOKOLL ===\n\n"
+    text += f"Szenario: {scenario}\n"
+    text += f"Simulierte Tage: {params['tage']}\n\n"
+    
+    text += "--- EINGESTELLTE PARAMETER ---\n"
+    text += f"Privatanleger Startquote: {params['retail_start']:.2f}\n"
+    text += f"Privatanleger Panik-Verkauf: {params['retail_panik_verkauf']:.2f}\n"
+    text += f"Privatanleger Gier-Kauf: {params['retail_gier_kauf']:.2f}\n"
+    text += f"Fonds Maximaler Hebel: {params['fund_leverage_limit']:.2f}\n"
+    text += f"Fonds VIX-Schwelle für Abflüsse: {params['fund_vix_threshold']:.0f}\n"
+    text += f"HFT Abschaltung bei VIX: {params['hft_vix_abs_schaltung']:.0f}\n"
+    text += f"Zentralbank Eingriff ab: {params['cb_intervention_schwelle']*100:.1f}% Verlust\n"
+    text += f"Tägliche Volatilität: {params['schock_volatilitaet']*100:.2f}%\n"
+    text += f"Schock-Wahrscheinlichkeit: {params['schock_wahrscheinlichkeit']*100:.2f}%\n\n"
+    
+    text += "--- ERGEBNISSE ---\n"
+    text += f"Startkurs: 100.00\n"
+    text += f"Endkurs: {prices[-1]:.2f}\n"
+    text += f"Gesamtrendite: {final_return:.1f} %\n"
+    text += f"Max. Drawdown: {abs(max_drawdown):.1f} %\n"
+    text += f"Max. VIX (Angst): {max_vix:.1f}\n"
+    text += f"HFT-Aus-Tage: {hft_off_days}\n\n"
+    
+    text += "--- FRAGE AN DEEPSEEK ---\n"
+    text += "Bitte prüfe diese Simulation auf logische Konsistenz und Plausibilität.\n"
+    text += "Sind die eingestellten Parameter und das erzielte Ergebnis logisch miteinander vereinbar?\n"
+    text += "Falls nicht, wo liegt der Widerspruch?\n"
+    text += "Gibt es ein mathematisches oder konzeptionelles Problem im Simulator?\n"
+    
+    return text
+
 # --- Hauptsimulation ---
 if st.button("🚀 Simulation neu starten", type="primary"):
     params = {
@@ -392,11 +430,10 @@ if st.button("🚀 Simulation neu starten", type="primary"):
         df.loc[df["VIX"] > 50, "Phase"] = "⛔ Flash-Crash"
         st.bar_chart(df["Phase"].value_counts())
 
-        # --- ANALYSE & INTERPRETATION (Jetzt mit Szenario-Tiefe) ---
+        # --- ANALYSE & INTERPRETATION ---
         st.subheader("🧠 Analyse & Interpretation für Dich")
         
         if scenario != "Benutzerdefiniert (Manuell)":
-            # --- Detaillierte Erklärungen für voreingestellte Szenarien wieder eingebaut ---
             if scenario == "1. Panik-Crash (Roboter schalten aus)":
                 fixed_text = "**Analyse:** Die Handelsroboter (HFTs) sind so eingestellt, dass sie sich bereits bei einem niedrigen VIX (25) abschalten. Gleichzeitig reagieren die Privatanleger extrem panisch (Verkaufsrate 0.40) auf Verluste. Das führt zu einem perfekten Sturm: Sobald die Kurse leicht fallen, steigt die Angst, die Roboter schalten ab (Liquidität verschwindet), und die panischen Anleger verkaufen massiv in einen Markt ohne Käufer – ein klassischer Flash-Crash."
             elif scenario == "2. Allmächtige Notenbank (starker Eingriff)":
@@ -433,6 +470,34 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             st.markdown(conclusion)
             st.info(lesson)
             st.warning(coach_text)
+
+# --- NEU: DEEPSEEK PLAUSIBILITÄTS-CHECK EXPORT ---
+if st.button("🧐 DeepSeek-Plausibilitäts-Check vorbereiten"):
+    with st.spinner("Erstelle Protokoll für DeepSeek..."):
+        params = {
+            'tage': tage, 'retail_start': retail_start, 'retail_gier_schwelle': retail_gier_schwelle,
+            'retail_panik_schwelle': retail_panik_schwelle, 'retail_panik_verkauf': retail_panik_verkauf,
+            'retail_gier_kauf': retail_gier_kauf, 'fund_start': fund_start, 'fund_leverage_limit': fund_leverage_limit,
+            'fund_vix_threshold': fund_vix_threshold, 'fund_abfluss_rate': fund_abfluss_rate,
+            'hft_capital': hft_capital, 'hft_vix_abs_schaltung': hft_vix_abs_schaltung,
+            'cb_intervention_schwelle': cb_intervention_schwelle, 'cb_kauf_volumen': cb_kauf_volumen,
+            'cb_vola_reduktion': cb_vola_reduktion, 'schock_volatilitaet': schock_volatilitaet,
+            'schock_wahrscheinlichkeit': schock_wahrscheinlichkeit
+        }
+        
+        # Wir brauchen eine Dummy-Simulation, um die Daten zu bekommen (oder wir laden die letzte nicht. 
+        # Um den Export auch ohne letzte Simulation nutzbar zu machen, starten wir eine Standard-Simulation im Hintergrund)
+        # ABER: Besser ist, wir nutzen die *letzte* Simulation, wenn vorhanden. 
+        # Da streamlit den State nicht persistent speichert, lassen wir die App einfach eine neue Simulation im Hintergrund laufen.
+        
+        prices, vix_history, retail_quotes, fund_quotes, hft_active_history = run_simulation(**params)
+        
+        # Wenn eine Simulation gelaufen ist, haben wir diese Daten.
+        export_text = generate_deepseek_export(params, prices, vix_history, hft_active_history, scenario)
+        
+        st.subheader("📄 DeepSeek-Protokoll (Kopieren & Einfügen)")
+        st.info("Kopiere den folgenden Text, füge ihn in einen neuen Chat mit DeepSeek ein und frage: 'Bitte prüfe diese Simulation auf Plausibilität und Logik!'")
+        st.code(export_text, language="text")
 
 # --- Experten-Modus (Einklappbar für Profis) ---
 with st.expander("🧪 Erweiterte Tests für Experten (Klicke hier)"):
