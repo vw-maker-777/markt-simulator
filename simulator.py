@@ -321,12 +321,12 @@ def generate_user_friendly_insight(
 
     if hft_off_days > 0: story_text += "Die Liquidität verschwand, aber der Kurs folgte weiterhin dem Angebot und der Nachfrage der Anleger. "
 
+    # --- KORREKTUR 1: Zentralbank-Erkennung basierend auf tatsächlichem Drawdown ---
     cb_text = ""
-    cb_interventions = 0
-    for i in range(1, len(prices)-1):
-        if prices[i] > prices[i-1] * 1.03: cb_interventions += 1
-    if cb_interventions > 0: cb_text = f"**🏦 Rolle der Zentralbank:** Die Notenbank griff **{cb_interventions} Mal** ein und verhinderte den totalen Zusammenbruch."
-    else: cb_text = f"**🏦 Rolle der Zentralbank:** Die Notenbank griff **nicht** ein. Der Markt wurde sich selbst überlassen."
+    if max_drawdown < -cb_intervention_schwelle * 100:
+        cb_text = f"**🏦 Rolle der Zentralbank:** Die Notenbank griff ein (da der Drawdown von {abs(max_drawdown):.1f}% ihre Eingriffsschwelle von {cb_intervention_schwelle*100:.0f}% überschritt) und verhinderte den totalen Zusammenbruch."
+    else:
+        cb_text = f"**🏦 Rolle der Zentralbank:** Die Notenbank griff **nicht** ein. Der Markt wurde sich selbst überlassen."
 
     conclusion = f"**📌 Fazit für Dein Portfolio:** Rendite **{final_return:.1f} %**, max. Drawdown **{abs(max_drawdown):.1f} %**."
 
@@ -339,6 +339,7 @@ def generate_user_friendly_insight(
 
     return summary, params_text, story_text, cb_text, conclusion, lesson
 
+# --- KORRIGIERTE COACH-FUNKTION (DYNAMISCH FÜR HEBEL) ---
 def generate_coach_explanation(final_return, max_vix, hft_off_days, retail_panik_verkauf, retail_start, fund_leverage_limit):
     if hft_off_days == 0:
         hft_status = "aktive HFTs"
@@ -358,8 +359,14 @@ def generate_coach_explanation(final_return, max_vix, hft_off_days, retail_panik
         text += "🚨 **Problem: Privatanleger sind zu panisch.** Die Panik-Verkaufsrate ist hoch. Sie verkaufen bei jedem kleinen Rücksetzer massiv.\n\n"
     elif retail_start < 0.50:
         text += "⚠️ **Problem: Start-Aktienquote zu niedrig.** Zu wenig langfristige Kaufkraft im Markt.\n\n"
+    
+    # --- KORREKTUR 2: Dynamische Hebel-Analyse ---
     elif fund_leverage_limit > 1.5:
-        text += "💥 **Problem: Fonds zu stark gehebelt.** Zwangsverkäufe verschärfen den Absturz.\n\n"
+        if final_return > 10:
+            text += "📈 **Trotz hohem Hebel erfolgreich!** Die Fonds waren zwar extrem risikoreich (Hebel 2.0) eingestellt, aber weil der Markt von der Zentralbank stabilisiert wurde und stieg, hat sich der Hebel als Turbo für die Rallye ausgezahlt. In einem Bärenmarkt wäre dieser Hebel jedoch katastrophal gewesen.\n\n"
+        else:
+            text += "💥 **Problem: Fonds zu stark gehebelt.** Zwangsverkäufe verschärfen den Absturz.\n\n"
+        
     else:
         text += "✅ **Stabile Einstellungen.** Die Parameter sind gut gewählt. Der Kurs folgt Angebot und Nachfrage.\n\n"
 
@@ -476,23 +483,23 @@ if st.button("🚀 Simulation neu starten", type="primary"):
     df.loc[df["VIX"] > 50, "Phase"] = "⛔ Flash-Crash"
     st.bar_chart(df["Phase"].value_counts())
 
-    # --- DYNAMISCHE ANALYSE-BOX FÜR SZENARIEN (MIT VOLATILITÄTS-CHECK) ---
+    # --- DYNAMISCHE ANALYSE-BOX FÜR SZENARIEN ---
     st.subheader("🧠 Analyse & Interpretation für Dich")
     final_return = (prices[-1] - prices[0]) / prices[0] * 100
+    max_vix = max(vix_history)
     
     if scenario != "Benutzerdefiniert (Manuell)":
 
-        # --- SZENARIO 1: PANIK-CRASH (OPTIMIERT) ---
+        # --- SZENARIO 1: PANIK-CRASH ---
         if scenario == "1. Panik-Crash (Roboter schalten aus)":
             dynamic_text = f"**Analyse:** Dieses Szenario ist darauf ausgelegt, die Gefahren einer frühzeitigen Abschaltung von Handelsrobotern (HFTs) bei VIX > 25 zu zeigen. "
             if hft_vix_abs_schaltung <= 25:
                 dynamic_text += f"Da Sie die HFT-Schwelle auf **{hft_vix_abs_schaltung}** belassen haben, ist die Gefahr eines Flash-Crashs theoretisch extrem hoch. Die Panik-Rate der Privatanleger ({retail_panik_verkauf:.1f}) verstärkt den Effekt zusätzlich."
                 
-                # Zusatz-Check: Wenn Volatilität und Schocks extrem niedrig sind, wird der Crash nie ausgelöst!
-                if schock_volatilitaet <= 0.005 and schock_wahrscheinlichkeit <= 0.005:
-                    dynamic_text += f" **Hinweis:** Da Sie die tägliche Volatilität auf {schock_volatilitaet*100:.1f}% und die Schock-Wahrscheinlichkeit auf {schock_wahrscheinlichkeit*100:.1f}% reduziert haben, wird der VIX in dieser Simulation voraussichtlich niemals die kritische Schwelle von 25 erreichen. Die Gefahr besteht grundsätzlich, bleibt aber aufgrund der aktuell extrem ruhigen Marktlage unsichtbar."
-                elif schock_volatilitaet <= 0.005:
-                     dynamic_text += f" **Hinweis:** Da Sie die tägliche Volatilität auf {schock_volatilitaet*100:.1f}% reduziert haben, wird der VIX in dieser Simulation voraussichtlich niemals die 25 erreichen. Der Markt ist zu ruhig, um den Crash auszulösen."
+                if max_vix > hft_vix_abs_schaltung:
+                    dynamic_text += f" **Hinweis:** Obwohl die Volatilität auf {schock_volatilitaet*100:.1f}% und die Schock-Wahrscheinlichkeit auf {schock_wahrscheinlichkeit*100:.1f}% reduziert wurde, hat ein extrem unglücklicher Ausreißer (Fat Tail) den VIX in dieser Simulation tatsächlich auf **{max_vix:.1f}** katapultiert. Dies zeigt, dass selbst in ruhigen Märkten seltene, aber fatale Schocks möglich sind!"
+                else:
+                    dynamic_text += f" **Hinweis:** Da die tägliche Volatilität auf {schock_volatilitaet*100:.1f}% und die Schock-Wahrscheinlichkeit auf {schock_wahrscheinlichkeit*100:.1f}% reduziert wurde, blieb der VIX in dieser Simulation tatsächlich unter der kritischen Schwelle von {hft_vix_abs_schaltung}. Der Crash wurde in diesem Durchlauf ausgesetzt."
             else:
                 dynamic_text += f"Sie haben die HFT-Schwelle jedoch auf **{hft_vix_abs_schaltung}** erhöht. Dies hat den Crash in diesem Szenario abgemildert und zeigt, wie robuste Handelsroboter den Markt schützen können."
 
