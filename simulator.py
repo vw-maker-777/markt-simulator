@@ -199,10 +199,12 @@ def run_simulation(
     
     return prices, vix_history, retail_quotes, fund_quotes, hft_active_history
 
-# --- NEUE: Dynamische Analyse-Funktion (für manuelle Einstellungen) ---
+# --- NEU: Dynamische Analyse-Funktion (mit Einstellungs-Protokoll) ---
 def generate_dynamic_insight(retail_quotes, fund_quotes, hft_active_history, vix_history, prices, 
                              fund_leverage_limit, fund_vix_threshold, hft_vix_abs_schaltung, 
-                             cb_intervention_schwelle, scenario_name):
+                             cb_intervention_schwelle, scenario_name,
+                             retail_start, retail_panik_verkauf, retail_gier_kauf,
+                             schock_volatilitaet, schock_wahrscheinlichkeit):
     
     # Basis-Statistiken sammeln
     max_vix = max(vix_history)
@@ -216,19 +218,20 @@ def generate_dynamic_insight(retail_quotes, fund_quotes, hft_active_history, vix
     # Prüfung: Wurde die Zentralbank aktiv?
     cb_interventions = 0
     for i in range(1, len(prices)-1):
-        # Ein großer Sprung nach oben im Kurs deutet auf eine Zentralbank-Intervention hin
         if prices[i] > prices[i-1] * 1.03:
             cb_interventions += 1
     
-    # Prüfung: Wie hoch war der Hebel der Fonds?
     avg_fund_leverage = np.mean(fund_quotes)
-    high_leverage = avg_fund_leverage > 1.2
 
-    # Dynamische Text-Generierung
-    if scenario_name != "Benutzerdefiniert (Manuell)":
-        return None # Falls ein vorgefertigtes Szenario gewählt wurde, nutze die andere Funktion
-
-    analysis_text = f"**📊 Analyse Deines manuellen Szenarios:**\n\n"
+    # Wenn manuell, schreibe zuerst die exakten Einstellungen auf
+    analysis_text = f"**⚙️ Deine eingestellten Parameter:**\n\n"
+    analysis_text += f"- **Privatanleger:** Startquote {retail_start:.1f}, Panik-Verkauf {retail_panik_verkauf:.1f}, Gier-Kauf {retail_gier_kauf:.1f}\n"
+    analysis_text += f"- **Fonds:** Max. Hebel {fund_leverage_limit:.1f}, VIX-Abfluss-Schwelle {fund_vix_threshold:.0f}\n"
+    analysis_text += f"- **HFTs:** Abschaltung ab VIX {hft_vix_abs_schaltung:.0f}\n"
+    analysis_text += f"- **Zentralbank:** Eingriff ab {cb_intervention_schwelle:.0%} Verlust\n"
+    analysis_text += f"- **Markt:** Schock-Vola {schock_volatilitaet*100:.1f}%, Schock-Wahrscheinlichkeit {schock_wahrscheinlichkeit*100:.1f}%\n\n"
+    
+    analysis_text += f"**📊 Analyse der Ergebnisse:**\n\n"
     analysis_text += f"Der Markt startete bei 100 Punkten und endete bei **{prices[-1]:.2f}**.\n"
     analysis_text += f"Das entspricht einer Gesamtrendite von **{final_return:.1f} %**.\n\n"
     
@@ -243,7 +246,7 @@ def generate_dynamic_insight(retail_quotes, fund_quotes, hft_active_history, vix
     else:
         analysis_text += f"🟢 **Relativ ruhiger Markt.** Der VIX blieb die meiste Zeit unter 30.\n"
 
-    if high_leverage:
+    if avg_fund_leverage > 1.2:
         analysis_text += f"\n📈 **Hebel-Effekt:** Die Fonds hatten eine durchschnittliche Aktienquote von **{avg_fund_leverage:.1f}** (stark gehebelt). Das hat die Ausschläge im Markt verstärkt.\n"
     
     if cb_interventions > 0:
@@ -354,20 +357,20 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             
         st.dataframe(display_df.style.map(highlight_vix, subset=["VIX"]))
 
-        # --- Erklärungsbox (JETZT DYNAMISCH) ---
+        # --- Erklärungsbox (JETZT MIT EINSTELLUNGEN) ---
         st.subheader("🧠 Interpretation der Marktdynamik")
         
-        # Prüfe, ob ein festes Szenario gewählt wurde
         fixed_text = generate_fixed_insight(scenario)
         
         if fixed_text:
             st.info(fixed_text)
         else:
-            # Wenn "Manuell", generiere eine dynamische Analyse basierend auf den echten Daten
             dynamic_text = generate_dynamic_insight(
                 retail_quotes, fund_quotes, hft_active_history, vix_history, prices,
                 fund_leverage_limit, fund_vix_threshold, hft_vix_abs_schaltung,
-                cb_intervention_schwelle, scenario
+                cb_intervention_schwelle, scenario,
+                retail_start, retail_panik_verkauf, retail_gier_kauf,
+                schock_volatilitaet, schock_wahrscheinlichkeit
             )
             st.info(dynamic_text)
 
