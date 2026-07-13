@@ -476,20 +476,27 @@ if st.button("🚀 Simulation neu starten", type="primary"):
     df.loc[df["VIX"] > 50, "Phase"] = "⛔ Flash-Crash"
     st.bar_chart(df["Phase"].value_counts())
 
-    # --- NEU: DYNAMISCHE ANALYSE-BOX FÜR SZENARIEN ---
+    # --- DYNAMISCHE ANALYSE-BOX FÜR SZENARIEN (MIT VOLATILITÄTS-CHECK) ---
     st.subheader("🧠 Analyse & Interpretation für Dich")
     final_return = (prices[-1] - prices[0]) / prices[0] * 100
     
     if scenario != "Benutzerdefiniert (Manuell)":
-        # Dynamische Analyse für Szenario 1
+
+        # --- SZENARIO 1: PANIK-CRASH (OPTIMIERT) ---
         if scenario == "1. Panik-Crash (Roboter schalten aus)":
             dynamic_text = f"**Analyse:** Dieses Szenario ist darauf ausgelegt, die Gefahren einer frühzeitigen Abschaltung von Handelsrobotern (HFTs) bei VIX > 25 zu zeigen. "
             if hft_vix_abs_schaltung <= 25:
-                dynamic_text += f"Da Sie die HFT-Schwelle auf **{hft_vix_abs_schaltung}** belassen haben, ist die Gefahr eines Flash-Crashs extrem hoch. Die Panik-Rate der Privatanleger ({retail_panik_verkauf:.1f}) verstärkt den Effekt zusätzlich."
+                dynamic_text += f"Da Sie die HFT-Schwelle auf **{hft_vix_abs_schaltung}** belassen haben, ist die Gefahr eines Flash-Crashs theoretisch extrem hoch. Die Panik-Rate der Privatanleger ({retail_panik_verkauf:.1f}) verstärkt den Effekt zusätzlich."
+                
+                # Zusatz-Check: Wenn Volatilität und Schocks extrem niedrig sind, wird der Crash nie ausgelöst!
+                if schock_volatilitaet <= 0.005 and schock_wahrscheinlichkeit <= 0.005:
+                    dynamic_text += f" **Hinweis:** Da Sie die tägliche Volatilität auf {schock_volatilitaet*100:.1f}% und die Schock-Wahrscheinlichkeit auf {schock_wahrscheinlichkeit*100:.1f}% reduziert haben, wird der VIX in dieser Simulation voraussichtlich niemals die kritische Schwelle von 25 erreichen. Die Gefahr besteht grundsätzlich, bleibt aber aufgrund der aktuell extrem ruhigen Marktlage unsichtbar."
+                elif schock_volatilitaet <= 0.005:
+                     dynamic_text += f" **Hinweis:** Da Sie die tägliche Volatilität auf {schock_volatilitaet*100:.1f}% reduziert haben, wird der VIX in dieser Simulation voraussichtlich niemals die 25 erreichen. Der Markt ist zu ruhig, um den Crash auszulösen."
             else:
                 dynamic_text += f"Sie haben die HFT-Schwelle jedoch auf **{hft_vix_abs_schaltung}** erhöht. Dies hat den Crash in diesem Szenario abgemildert und zeigt, wie robuste Handelsroboter den Markt schützen können."
 
-        # Dynamische Analyse für Szenario 2
+        # --- SZENARIO 2: ALLMÄCHTIGE NOTENBANK ---
         elif scenario == "2. Allmächtige Notenbank (starker Eingriff)":
             dynamic_text = f"**Analyse:** Dieses Szenario simuliert eine sehr aktive Zentralbank, die bereits bei einem Kursverlust von 5% eingreift. "
             if cb_intervention_schwelle <= 0.05:
@@ -497,7 +504,7 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             else:
                 dynamic_text += f"Sie haben die Eingriffsschwelle jedoch auf **{cb_intervention_schwelle:.0%}** angehoben. Dadurch lässt die Zentralbank dem Markt mehr Raum für Korrekturen, was die Volatilität erhöhen kann."
 
-        # Dynamische Analyse für Szenario 3
+        # --- SZENARIO 3: GEFÄHRLICHER HEBEL DER FONDS ---
         elif scenario == "3. Gefährlicher Hebel der Fonds":
             dynamic_text = f"**Analyse:** Dieses Szenario ist darauf ausgelegt, die Risiken eines stark gehebelten Fonds (Zielwert: 1.5-fach) zu demonstrieren. "
             if fund_leverage_limit >= 1.4:
@@ -507,7 +514,7 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             else:
                 dynamic_text += f"Sie haben den Hebel auf **{fund_leverage_limit:.1f}** eingestellt."
 
-        # Dynamische Analyse für Szenario 4
+        # --- SZENARIO 4: RUHIGER AUFWÄRTSTREND ---
         elif scenario == "4. Ruhiger, stetiger Aufwärtstrend":
             dynamic_text = f"**Analyse:** Dieses Szenario ist darauf ausgelegt, einen ruhigen, stetigen Aufwärtstrend mit niedriger Panik und stabilen HFTs zu zeigen. "
             if retail_panik_verkauf <= 0.05 and hft_vix_abs_schaltung >= 60:
@@ -519,7 +526,7 @@ if st.button("🚀 Simulation neu starten", type="primary"):
         
         st.info(dynamic_text)
         
-        # --- NEU: UI-Warnung bei unerwartetem Fat Tail im Szenario ---
+        # --- GELBE WARNBOX: UNERWARTETER FAT TAIL ---
         if final_return < -20 and scenario != "1. Panik-Crash (Roboter schalten aus)":
             st.warning(
                 "⚠️ **Hinweis zur Abweichung vom Szenario:** "
