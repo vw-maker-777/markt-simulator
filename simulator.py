@@ -240,9 +240,10 @@ def run_simulation(**kwargs):
             liquidity = max(100, total_liquidity * 0.2)
         
         if liquidity > 0:
+            # Erhöhter Drift von 0.0001 auf 0.0002 (ca. 5% p.a.)
             price_change = 0.0002 + (net_demand / liquidity) * 0.1
         else:
-            price_change = 0.0001 - 0.001
+            price_change = 0.0002 - 0.001
         
         price_change += shock
         price = price * (1 + price_change)
@@ -332,20 +333,42 @@ def generate_user_friendly_insight(
 
     return summary, params_text, story_text, cb_text, conclusion, lesson
 
-def generate_coach_explanation(retail_panik_verkauf, max_vix, hft_off_days, final_return, retail_start, fund_leverage_limit):
+# --- KORRIGIERTE COACH-FUNKTION ---
+def generate_coach_explanation(final_return, max_vix, hft_off_days, retail_panik_verkauf, retail_start, fund_leverage_limit):
     text = "**🔍 Was ist hier passiert?**\n\n"
-    if max_vix > 45 and hft_off_days > 3: text += "⚠️ **Liquiditätskrise durch HFT-Abschaltung!** Der VIX schoss über 45, die HFTs verließen den Markt. Ohne Liquidität brach der Markt zusammen.\n\n"
-    elif retail_panik_verkauf > 0.35: text += "🚨 **Problem: Privatanleger sind zu panisch.** Die Panik-Verkaufsrate ist hoch. Sie verkaufen bei jedem kleinen Rücksetzer massiv.\n\n"
-    elif retail_start < 0.50: text += "⚠️ **Problem: Start-Aktienquote zu niedrig.** Zu wenig langfristige Kaufkraft im Markt.\n\n"
-    elif fund_leverage_limit > 1.5: text += "💥 **Problem: Fonds zu stark gehebelt.** Zwangsverkäufe verschärfen den Absturz.\n\n"
-    else: text += "✅ **Gute Einstellungen!** Deine Panik-Rate ist niedrig und die Startquote ist optimistisch. Das führt in der Regel zu einem stabilen Aufwärtstrend.\n\n"
     
-    if final_return < -10: text += f"📉 **Das Ergebnis:** Der Markt brach um **{abs(final_return):.1f} %** ein. "
-    elif final_return > 10: text += f"📈 **Das Ergebnis:** Der Markt stieg um **{final_return:.1f} %**. Eine starke Rallye!"
-    else: text += f"📊 **Das Ergebnis:** Der Markt bewegte sich seitwärts mit einer Rendite von **{final_return:.1f} %**."
+    # NEU: Priorität 0 - Wenn das Ergebnis eine Katastrophe ist!
+    if final_return < -15:
+        text += "💥 **Schwerer Crash trotz guter Einstellungen!** Die Wahrscheinlichkeit (2% Schock) hat einen extremen 'Fat Tail' getroffen. Selbst moderate Panik (0.3) und aktive HFTs haben den Sturz nicht aufhalten können. Der Simulator zeigt hier eine realistische, aber seltene Worst-Case-Situation.\n\n"
+        
+    # Priorität 1 - Wenn HFTs ausgefallen sind und der VIX extrem war
+    elif max_vix > 45 and hft_off_days > 3:
+        text += "⚠️ **Liquiditätskrise durch HFT-Abschaltung!** Der VIX schoss über 45, die HFTs verließen den Markt. Ohne Liquidität brach der Markt zusammen.\n\n"
+        
+    # Priorität 2 - Wenn Anleger panisch waren
+    elif retail_panik_verkauf > 0.35:
+        text += "🚨 **Problem: Privatanleger sind zu panisch.** Die Panik-Verkaufsrate ist hoch. Sie verkaufen bei jedem kleinen Rücksetzer massiv.\n\n"
+        
+    # Priorität 3 - Wenn Startquote zu niedrig
+    elif retail_start < 0.50:
+        text += "⚠️ **Problem: Start-Aktienquote zu niedrig.** Zu wenig langfristige Kaufkraft im Markt.\n\n"
+        
+    # Priorität 4 - Wenn Fonds zu stark hebeln
+    elif fund_leverage_limit > 1.5:
+        text += "💥 **Problem: Fonds zu stark gehebelt.** Zwangsverkäufe verschärfen den Absturz.\n\n"
+        
+    else:
+        text += "✅ **Stabile Einstellungen.** Die Parameter sind gut gewählt. Der Kurs folgt Angebot und Nachfrage.\n\n"
+    
+    if final_return < -10:
+        text += f"📉 **Das Ergebnis:** Der Markt brach um **{abs(final_return):.1f} %** ein. "
+    elif final_return > 10:
+        text += f"📈 **Das Ergebnis:** Der Markt stieg um **{final_return:.1f} %**. Eine starke Rallye!"
+    else:
+        text += f"📊 **Das Ergebnis:** Der Markt bewegte sich seitwärts mit einer Rendite von **{final_return:.1f} %**."
     return text
 
-# --- NEUE HILFSFUNKTION: DeepSeek-Export ---
+# --- DeepSeek Export ---
 def generate_deepseek_export(params, prices, vix_history, hft_active_history, scenario):
     final_return = (prices[-1] - prices[0]) / prices[0] * 100
     max_vix = max(vix_history)
@@ -460,7 +483,7 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             )
             
             coach_text = generate_coach_explanation(
-                retail_panik_verkauf, max_vix, hft_off_days, final_return, retail_start, fund_leverage_limit
+                final_return, max_vix, hft_off_days, retail_panik_verkauf, retail_start, fund_leverage_limit
             )
 
             st.success(summary)
@@ -471,7 +494,7 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             st.info(lesson)
             st.warning(coach_text)
 
-# --- NEU: DEEPSEEK PLAUSIBILITÄTS-CHECK EXPORT ---
+# --- DeepSeek Export Button ---
 if st.button("🧐 DeepSeek-Plausibilitäts-Check vorbereiten"):
     with st.spinner("Erstelle Protokoll für DeepSeek..."):
         params = {
@@ -484,22 +507,14 @@ if st.button("🧐 DeepSeek-Plausibilitäts-Check vorbereiten"):
             'cb_vola_reduktion': cb_vola_reduktion, 'schock_volatilitaet': schock_volatilitaet,
             'schock_wahrscheinlichkeit': schock_wahrscheinlichkeit
         }
-        
-        # Wir brauchen eine Dummy-Simulation, um die Daten zu bekommen (oder wir laden die letzte nicht. 
-        # Um den Export auch ohne letzte Simulation nutzbar zu machen, starten wir eine Standard-Simulation im Hintergrund)
-        # ABER: Besser ist, wir nutzen die *letzte* Simulation, wenn vorhanden. 
-        # Da streamlit den State nicht persistent speichert, lassen wir die App einfach eine neue Simulation im Hintergrund laufen.
-        
         prices, vix_history, retail_quotes, fund_quotes, hft_active_history = run_simulation(**params)
-        
-        # Wenn eine Simulation gelaufen ist, haben wir diese Daten.
         export_text = generate_deepseek_export(params, prices, vix_history, hft_active_history, scenario)
         
         st.subheader("📄 DeepSeek-Protokoll (Kopieren & Einfügen)")
         st.info("Kopiere den folgenden Text, füge ihn in einen neuen Chat mit DeepSeek ein und frage: 'Bitte prüfe diese Simulation auf Plausibilität und Logik!'")
         st.code(export_text, language="text")
 
-# --- Experten-Modus (Einklappbar für Profis) ---
+# --- Experten-Modus (Einklappbar) ---
 with st.expander("🧪 Erweiterte Tests für Experten (Klicke hier)"):
     st.markdown("Dieser Test verändert Deine aktuellen Einstellungen um kleine Schritte, um zu zeigen, wie empfindlich der Markt auf Änderungen reagiert.")
     
