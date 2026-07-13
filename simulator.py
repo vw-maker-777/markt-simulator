@@ -330,7 +330,7 @@ def generate_user_friendly_insight(
 
     conclusion = f"**📌 Fazit für Dein Portfolio:** Rendite **{final_return:.1f} %**, max. Drawdown **{abs(max_drawdown):.1f} %**."
 
-    # --- KORREKTUR 2: Variable cb_interventions für die Lektion wiederhergestellt ---
+    # --- Variable cb_interventions für die Lektion ---
     cb_interventions = 0
     for i in range(1, len(prices)-1):
         if prices[i] > prices[i-1] * 1.03:
@@ -366,7 +366,7 @@ def generate_coach_explanation(final_return, max_vix, hft_off_days, retail_panik
     elif retail_start < 0.50:
         text += "⚠️ **Problem: Start-Aktienquote zu niedrig.** Zu wenig langfristige Kaufkraft im Markt.\n\n"
     
-    # --- KORREKTUR 2: Dynamische Hebel-Analyse ---
+    # --- DYNAMISCHE HEBEL-ANALYSE ---
     elif fund_leverage_limit > 1.5:
         if final_return > 10:
             text += "📈 **Trotz hohem Hebel erfolgreich!** Die Fonds waren zwar extrem risikoreich (Hebel 2.0) eingestellt, aber weil der Markt von der Zentralbank stabilisiert wurde und stieg, hat sich der Hebel als Turbo für die Rallye ausgezahlt. In einem Bärenmarkt wäre dieser Hebel jedoch katastrophal gewesen.\n\n"
@@ -493,6 +493,8 @@ if st.button("🚀 Simulation neu starten", type="primary"):
     st.subheader("🧠 Analyse & Interpretation für Dich")
     final_return = (prices[-1] - prices[0]) / prices[0] * 100
     max_vix = max(vix_history)
+    max_drawdown = min([(p - prices[0]) / prices[0] for p in prices]) * 100
+    hft_off_days = sum(1 for x in hft_active_history if x == 0)
     
     if scenario != "Benutzerdefiniert (Manuell)":
 
@@ -527,10 +529,15 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             else:
                 dynamic_text += f"Sie haben den Hebel auf **{fund_leverage_limit:.1f}** eingestellt."
 
-        # --- SZENARIO 4: RUHIGER AUFWÄRTSTREND ---
+        # --- SZENARIO 4: RUHIGER AUFWÄRTSTREND (MIT VOLATILITÄTS-CHECK) ---
         elif scenario == "4. Ruhiger, stetiger Aufwärtstrend":
             dynamic_text = f"**Analyse:** Dieses Szenario ist darauf ausgelegt, einen ruhigen, stetigen Aufwärtstrend mit niedriger Panik und stabilen HFTs zu zeigen. "
-            if retail_panik_verkauf <= 0.05 and hft_vix_abs_schaltung >= 60:
+            
+            # CHECK: Wenn die Volatilität größer als 1,5% ist, ist es nicht mehr ruhig!
+            if schock_volatilitaet > 0.015:
+                dynamic_text += f"🚨 **Achtung:** Sie haben die tägliche Volatilität auf **{schock_volatilitaet*100:.1f} %** erhöht. Damit handelt es sich **nicht mehr um einen ruhigen Markt**, sondern um einen extrem stürmischen Markt. Die hohe Volatilität hat den VIX auf {max_vix:.1f} getrieben, die HFTs für {hft_off_days} Tage abgeschaltet und zu einem Drawdown von {abs(max_drawdown):.1f} % geführt. Die erzielte Endrendite von {final_return:.1f} % ist daher das Ergebnis extremer Ausschläge, nicht einer sanften Rallye."
+            
+            elif retail_panik_verkauf <= 0.05 and hft_vix_abs_schaltung >= 60:
                 dynamic_text += f"Da Sie die Panik-Rate niedrig ({retail_panik_verkauf:.1f}) und die HFT-Schwelle hoch ({hft_vix_abs_schaltung}) belassen haben, verläuft der Markt erwartungsgemäß stabil."
             else:
                 dynamic_text += f"Sie haben jedoch die Panik-Rate auf {retail_panik_verkauf:.1f} oder die HFT-Schwelle auf {hft_vix_abs_schaltung} verändert, was die Dynamik dieses ruhigen Szenarios leicht beeinflusst hat."
