@@ -21,7 +21,7 @@ scenario = st.sidebar.selectbox(
      "4. Perfektes Contango (Ruhe)")
 )
 
-# Szenario-Logik (setzt ALLE Regler präzise)
+# Szenario-Logik
 if scenario == "1. Reiner Panik-Crash (HFTs schalten ab)":
     st.session_state["hft_vix"] = 25
     st.session_state["panic_sell"] = 0.40
@@ -180,7 +180,7 @@ else:
 tage = st.sidebar.slider("Simulations-Tage", 100, 2000, 500, 50)
 st.sidebar.caption(f"📌 *Simuliert {tage} Handelstage (ca. {tage/250:.1f} Jahre).*")
 
-# --- Simulations-Funktion (NEU: OHNE künstlichen Zwangs-Crash) ---
+# --- Simulations-Funktion (Neue, realistische Logik) ---
 def run_simulation(
     tage,
     retail_start, retail_gier_schwelle, retail_panik_schwelle, retail_panik_verkauf, retail_gier_kauf,
@@ -189,7 +189,6 @@ def run_simulation(
     cb_intervention_schwelle, cb_kauf_volumen, cb_vola_reduktion,
     schock_volatilitaet, schock_wahrscheinlichkeit
 ):
-    # Initialisierung
     price = 100.0
     vix = 18.0
     prices = [price]
@@ -197,6 +196,8 @@ def run_simulation(
     
     retail_quote = retail_start
     fund_quote = fund_start
+    retail_quote_prev = retail_quote  # NEU: Speichert den Wert von gestern
+    fund_quote_prev = fund_quote      # NEU: Speichert den Wert von gestern
     hft_active = True
     
     volume_retail = 100
@@ -207,21 +208,20 @@ def run_simulation(
     hft_active_history = [1]
     
     for day in range(tage):
-        
         # 1. Exogener Schock
         if np.random.rand() < schock_wahrscheinlichkeit:
             shock = np.random.normal(-0.05, 0.02)
         else:
             shock = np.random.normal(0, schock_volatilitaet)
         
-        # 2. Rendite 5-Tage
+        # 2. Rendite der letzten 5 Tage berechnen
         if len(prices) >= 5:
             ret_5d = (prices[-1] - prices[-5]) / prices[-5]
         else:
             ret_5d = 0
         
-        # 3. Privatanleger Verhalten (Mean Reversion + Gier/Panik)
-        target_retail = min(1.0, retail_start + (day / tage) * 0.05)
+        # 3. Privatanleger Verhalten
+        target_retail = min(1.0, retail_start + (day / tage) * 0.10)
         if ret_5d < retail_panik_schwelle:
             retail_quote = max(0, retail_quote - retail_panik_verkauf)
         elif ret_5d > retail_gier_schwelle:
@@ -229,8 +229,8 @@ def run_simulation(
         else:
             retail_quote += 0.02 * (target_retail - retail_quote)
         
-        # 4. Fonds Verhalten (Hebel + Abflüsse)
-        target_fund = min(fund_leverage_limit, fund_start + (day / tage) * 0.05)
+        # 4. Fonds Verhalten
+        target_fund = min(fund_leverage_limit, fund_start + (day / tage) * 0.10)
         flows = 0
         if vix > fund_vix_threshold:
             flows = -fund_abfluss_rate
@@ -255,33 +255,39 @@ def run_simulation(
             hft_volume = int(hft_capital / (vix_dec ** 2 + 0.001))
             hft_volume = max(100, hft_volume)
         
-        # 6. Netto-Demand (Angebot und Nachfrage)
-        retail_net = (retail_quote - retail_start) * volume_retail
-        fund_net = (fund_quote - fund_start) * fund_volume
+        # 6. Netto-Demand (NUR aus der Veränderung zum Vortag!) - DAS IST DER FIX
+        retail_net = (retail_quote - retail_quote_prev) * volume_retail
+        fund_net = (fund_quote - fund_quote_prev) * fund_volume
         net_demand = retail_net + fund_net
         
-        # 7. Preisänderung (NUR basierend auf Nachfrage)
-        # Drift von 0.02% pro Tag sorgt für langfristigen Aufwärtstrend
-        price_change = 0.0002 + net_demand / (volume_retail + volume_fund + 1000)
+        # 7. Liquidität und Preisänderung
+        total_liquidity = volume_retail + volume_fund
+        
+        # Wenn HFTs aktiv sind, stabilisieren sie den Markt
+        if hft_active:
+            liquidity = total_liquidity
+        else:
+            # Wenn HFTs abschalten, wird der Markt illiquide (niedrigeres Volumen), aber KEINE Explosion!
+            liquidity = max(100, total_liquidity * 0.2)
+        
+        # Realistische Preisänderung: (Netto-Demand / Liquidität) * 0.1 (Preis-Impact-Faktor)
+        if liquidity > 0:
+            price_change = 0.0001 + (net_demand / liquidity) * 0.1  # 0.0001 = 0.01% natürlicher Drift pro Tag
+        else:
+            price_change = 0.0001 - 0.001  # Falls Liquidität 0 ist, leichter Verfall
+        
+        # Schock hinzufügen
         price_change += shock
-        
-        # 8. Sprung bei Illiquidität (HFTs aus)
-        # Wenn HFTs aus sind, wird der Spread extremer, aber der Kurs folgt nur dem Angebot
-        if not hft_active:
-            # Kein künstlicher Crash! Nur die Hälfte des Volumens ist da, um den Demand zu bedienen
-            price_change = 0.0002 + net_demand / 500
-        
-        # 9. Neuer Preis
         price = price * (1 + price_change)
         price = max(1, price)
         prices.append(price)
         
-        # 10. VIX Berechnung (Anstieg bei großen Kursänderungen)
+        # 8. VIX aktualisieren
         vix = 15 + np.abs(price_change) * 500 + np.random.normal(0, 2)
         vix = max(10, min(80, vix))
         vix_history.append(vix)
         
-        # 11. Zentralbank Intervention
+        # 9. Zentralbank Intervention
         if len(prices) >= 5:
             drop_5d = (prices[-5] - prices[-1]) / prices[-5]
             if drop_5d > cb_intervention_schwelle:
@@ -290,10 +296,13 @@ def run_simulation(
                 vix = vix * (1 - cb_vola_reduktion)
                 vix_history[-1] = vix
         
-        # 12. Agenten-Historie speichern
+        # 10. Agenten-Historie speichern & Quotes für den nächsten Tag sichern
         retail_quotes.append(retail_quote)
         fund_quotes.append(fund_quote)
         hft_active_history.append(1 if hft_active else 0)
+        
+        retail_quote_prev = retail_quote
+        fund_quote_prev = fund_quote
     
     return prices, vix_history, retail_quotes, fund_quotes, hft_active_history
 
@@ -337,7 +346,6 @@ def generate_user_friendly_insight(
     hft_vix_abs_schaltung, cb_intervention_schwelle,
     schock_volatilitaet, schock_wahrscheinlichkeit, scenario_name
 ):
-    
     final_return = (prices[-1] - prices[0]) / prices[0] * 100
     max_vix = max(vix_history)
     hft_off_days = sum(1 for x in hft_active_history if x == 0)
@@ -375,7 +383,7 @@ def generate_user_friendly_insight(
     if max_vix > 45:
         story_text += "Es gab eine **extreme Panik-Phase** (VIX > 45). "
         if hft_off_days > 5:
-            story_text += f"Die HFTs schalteten für {hft_off_days} Tage ab. Dadurch wurde der Markt extrem illiquide und der Spread explodierte. "
+            story_text += f"Die HFTs schalteten für {hft_off_days} Tage ab. Dadurch wurde der Markt extrem illiquide, und die Kurse machten große Sprünge. "
     elif max_vix > 25:
         story_text += "Es gab eine **moderate Panik-Phase**. "
     else:
