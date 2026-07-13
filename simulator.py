@@ -49,7 +49,6 @@ elif scenario == "4. Perfektes Contango (Ruhe)":
     st.session_state["schock_volatility"] = 0.20
     st.session_state["schock_prob"] = 0.20
 else:
-    # Standardwerte für benutzerdefiniert
     st.session_state.setdefault("hft_vix", 40)
     st.session_state.setdefault("panic_sell", 0.30)
     st.session_state.setdefault("cb_intervention", 0.15)
@@ -58,37 +57,128 @@ else:
     st.session_state.setdefault("schock_volatility", 1.0)
     st.session_state.setdefault("schock_prob", 2.0)
 
-# 1. Privatanleger (Retail)
+# --- 1. PRIVATANLEGER ---
 st.sidebar.subheader("1. Privatanleger (Retail)")
+
 retail_start = st.sidebar.slider("Start-Aktienquote", 0.0, 1.0, st.session_state.retail_start, 0.05)
+if retail_start < 0.3:
+    st.sidebar.caption("📌 *Sehr defensiv: Kaum Aktien im Depot.*")
+elif retail_start < 0.6:
+    st.sidebar.caption("📌 *Ausgewogen: Klassischer Misch-Ansatz.*")
+elif retail_start < 0.9:
+    st.sidebar.caption("📌 *Optimistisch: Hohe Aktienquote, viel Risiko.*")
+else:
+    st.sidebar.caption("📌 *Maximal riskant: Fast 100% in Aktien.*")
+
 retail_gier_schwelle = st.sidebar.slider("Gier-Schwelle (Tagesrendite)", 0.01, 0.10, 0.03, 0.01)
+st.sidebar.caption(f"📌 *Erst ab +{retail_gier_schwelle*100:.1f}% Tagesrendite kaufen sie aggressiv zu.*")
+
 retail_panik_schwelle = st.sidebar.slider("Panik-Schwelle (Tagesrendite)", -0.15, -0.01, -0.05, 0.01)
+st.sidebar.caption(f"📌 *Bei -{abs(retail_panik_schwelle)*100:.1f}% Verlust am Tag geraten sie in Panik.*")
+
 retail_panik_verkauf = st.sidebar.slider("Panik-Verkaufsrate (pro Tag)", 0.1, 0.5, st.session_state.panic_sell, 0.05)
+if retail_panik_verkauf < 0.15:
+    st.sidebar.caption("📌 *Gelassen: Sie halten auch in Krisen ihre Aktien.*")
+elif retail_panik_verkauf < 0.30:
+    st.sidebar.caption("📌 *Normal: Verkaufen angemessen bei Panik.*")
+else:
+    st.sidebar.caption("📌 *Hektisch: Bei Panik wird alles verkauft – verschärft den Crash!*")
+
 retail_gier_kauf = st.sidebar.slider("Gier-Kaufrate (pro Tag)", 0.05, 0.3, 0.1, 0.02)
+if retail_gier_kauf < 0.10:
+    st.sidebar.caption("📌 *Vorsichtig: Kaufen langsam zu.*")
+else:
+    st.sidebar.caption("📌 *Gierig: Kaufen aggressiv in Rallyes – treibt Blasen.*")
 
-# 2. Institutionelle Fonds
+# --- 2. INSTITUTIONELLE FONDS ---
 st.sidebar.subheader("2. Institutionelle Fonds")
+
 fund_start = st.sidebar.slider("Start-Aktienquote", 0.0, 1.5, st.session_state.fund_leverage, 0.05)
+if fund_start < 1.0:
+    st.sidebar.caption("📌 *Konservativ: Kein Hebel, kaum Zwangsverkäufe.*")
+elif fund_start < 1.3:
+    st.sidebar.caption("📌 *Leicht gehebelt: Moderate Risiken.*")
+else:
+    st.sidebar.caption("📌 *Stark gehebelt: Hohe Gewinne, aber bei Crash muss massiv verkauft werden!*")
+
 fund_leverage_limit = st.sidebar.slider("Maximaler Hebel", 1.0, 2.0, 1.1, 0.1)
+if fund_leverage_limit < 1.2:
+    st.sidebar.caption("📌 *Sicher: Keine gefährlichen Hebel.*")
+elif fund_leverage_limit < 1.5:
+    st.sidebar.caption("📌 *Moderat: Etwas Risiko für mehr Rendite.*")
+else:
+    st.sidebar.caption("📌 *Riskant: Hoher Hebel kann zu Kettenreaktionen führen.*")
+
 fund_vix_threshold = st.sidebar.slider("VIX-Schwelle für Abflüsse", 20, 60, 30, 5)
+st.sidebar.caption(f"📌 *Bei einem VIX über {fund_vix_threshold} ziehen Großkunden ihr Geld ab – Fonds müssen dann zwangsverkaufen.*")
+
 fund_abfluss_rate = st.sidebar.slider("Abflussrate bei VIX-Überschreitung", 0.05, 0.5, 0.2, 0.05)
+if fund_abfluss_rate < 0.15:
+    st.sidebar.caption("📌 *Geduldige Kunden: Wenig Geldabfluss.*")
+else:
+    st.sidebar.caption("📌 *Panische Kunden: Massiver Geldabzug, der den Crash verstärkt.*")
 
-# 3. HFT / Market Maker
+# --- 3. HFT / MARKET MAKER ---
 st.sidebar.subheader("3. HFT / Market Maker")
+
 hft_capital = st.sidebar.number_input("Kapital (Volume)", 1000, 50000, 10000, 1000)
+if hft_capital < 5000:
+    st.sidebar.caption("📌 *Geringe Liquidität: Markt ist oft ausgetrocknet.*")
+else:
+    st.sidebar.caption("📌 *Hohe Liquidität: HFTs versorgen den Markt mit Geld.*")
+
 hft_vix_abs_schaltung = st.sidebar.slider("VIX-Schwelle für Abschaltung", 20, 80, st.session_state.hft_vix, 5)
+if hft_vix_abs_schaltung < 30:
+    st.sidebar.caption("📌 *Frühe Abschaltung: HFTs verschwinden bei leichter Panik → Flash-Crash-Gefahr!*")
+elif hft_vix_abs_schaltung < 50:
+    st.sidebar.caption("📌 *Normale Abschaltung: Bei großer Panik schalten sie ab.*")
+else:
+    st.sidebar.caption("📌 *Robust: HFTs bleiben auch in schweren Krisen aktiv – sehr stabil.*")
 
-# 4. Zentralbank
+# --- 4. ZENTRALBANK ---
 st.sidebar.subheader("4. Zentralbank")
-cb_intervention_schwelle = st.sidebar.slider("Interventions-Schwelle (Kursverlust in 5 Tagen)", 0.05, 0.30, st.session_state.cb_intervention, 0.02)
-cb_kauf_volumen = st.sidebar.slider("QE-Kaufvolumen (% des Marktes)", 0.01, 0.10, 0.05, 0.01)
-cb_vola_reduktion = st.sidebar.slider("Vola-Reduktion nach QE (%)", 0.2, 0.8, 0.30, 0.05)
 
-# 5. Marktumfeld
+cb_intervention_schwelle = st.sidebar.slider("Interventions-Schwelle (Kursverlust)", 0.05, 0.30, st.session_state.cb_intervention, 0.02)
+if cb_intervention_schwelle < 0.10:
+    st.sidebar.caption("📌 *Aktive Notenbank: Greift bei kleinsten Verlusten ein – starke Stützung.*")
+elif cb_intervention_schwelle < 0.20:
+    st.sidebar.caption("📌 *Abwartend: Greift bei moderaten Verlusten ein.*")
+else:
+    st.sidebar.caption("📌 *Passiv: Greift erst bei schweren Crashs ein – viel Leid vorher.*")
+
+cb_kauf_volumen = st.sidebar.slider("QE-Kaufvolumen (% des Marktes)", 0.01, 0.10, 0.05, 0.01)
+if cb_kauf_volumen < 0.04:
+    st.sidebar.caption("📌 *Kleine Rettungspakete: Schwacher Effekt auf den Kurs.*")
+else:
+    st.sidebar.caption("📌 *Große Rettungspakete: Starke Kurssprünge nach Eingriff.*")
+
+cb_vola_reduktion = st.sidebar.slider("Vola-Reduktion nach QE (%)", 0.2, 0.8, 0.30, 0.05)
+if cb_vola_reduktion < 0.4:
+    st.sidebar.caption("📌 *Geringe Beruhigung: Die Angst bleibt hoch.*")
+else:
+    st.sidebar.caption("📌 *Starke Beruhigung: VIX fällt drastisch nach Rettung.*")
+
+# --- 5. MARKTUMFELD ---
 st.sidebar.subheader("5. Marktumfeld")
+
 schock_volatilitaet = st.sidebar.slider("Tägliche Schock-Volatilität (%)", 0.5, 5.0, st.session_state.schock_volatility, 0.5) / 100
+if schock_volatilitaet*100 < 1.5:
+    st.sidebar.caption("📌 *Ruhiges Umfeld: Wenig überraschende Kurssprünge.*")
+elif schock_volatilitaet*100 < 3.0:
+    st.sidebar.caption("📌 *Normales Umfeld: Moderate tägliche Schwankungen.*")
+else:
+    st.sidebar.caption("📌 *Stürmisch: Sehr hohe tägliche Ausschläge – der Markt zittert.*")
+
 schock_wahrscheinlichkeit = st.sidebar.slider("Wahrscheinlichkeit großer Schocks (%)", 0.5, 10.0, st.session_state.schock_prob, 0.5) / 100
+if schock_wahrscheinlichkeit*100 < 2.0:
+    st.sidebar.caption("📌 *Seltene Krisen: Keine großen Überraschungen.*")
+elif schock_wahrscheinlichkeit*100 < 5.0:
+    st.sidebar.caption("📌 *Gelegentliche Krisen: Ab und zu ein Crash.*")
+else:
+    st.sidebar.caption("📌 *Häufige Panik: Ständige Schocks.*")
+
 tage = st.sidebar.slider("Simulations-Tage", 100, 2000, 500, 50)
+st.sidebar.caption(f"📌 *Simuliert {tage} Handelstage (ca. {tage/250:.1f} Jahre).*")
 
 # --- Simulations-Funktion ---
 def run_simulation(
@@ -168,7 +258,6 @@ def run_simulation(
         
         net_demand = retail_net + fund_net
         if liquidity > 0:
-            # 0.0002 = 0.02% natürlicher Aufwärtstrend (Drift) für Aktienmärkte
             price_change = 0.0002 + net_demand / (liquidity + 1000)
         else:
             if net_demand < 0:
@@ -208,14 +297,12 @@ def generate_user_friendly_insight(
     schock_volatilitaet, schock_wahrscheinlichkeit, scenario_name
 ):
     
-    # Basis-Daten
     final_return = (prices[-1] - prices[0]) / prices[0] * 100
     max_vix = max(vix_history)
     hft_off_days = sum(1 for x in hft_active_history if x == 0)
     avg_fund = np.mean(fund_quotes)
     max_drawdown = min([(p - prices[0]) / prices[0] for p in prices]) * 100
     
-    # 1. Das Kurz-Fazit (das Wichtigste zuerst)
     if final_return > 10:
         summary = f"🚀 **Starke Rallye:** Der Markt ist um **{final_return:.1f} %** gestiegen."
     elif final_return > 2:
@@ -227,47 +314,41 @@ def generate_user_friendly_insight(
     else:
         summary = f"💥 **Schwerer Crash:** Der Markt brach um **{abs(final_return):.1f} %** ein."
 
-    # 2. Die Parameter in Klartext übersetzen
     params_text = "**⚙️ Wie waren die Marktteilnehmer eingestellt?**\n\n"
-    params_text += f"• **Die Privatanleger** starteten mit einer **{retail_start*100:.0f}% Aktienquote**. "
+    params_text += f"• **Privatanleger:** Startquote {retail_start*100:.0f}%, "
+    params_text += f"Panik-Verkauf {retail_panik_verkauf:.1f}. "
     if retail_panik_verkauf > 0.3:
-        params_text += "Sie reagierten **sehr panisch** auf Verluste (verkauften sehr aggressiv). "
-    elif retail_panik_verkauf < 0.15:
-        params_text += "Sie reagierten **gelassen** auf Verluste. "
-    
-    params_text += f"• **Die Fonds** durften sich bis zu **{fund_leverage_limit:.1f}-fach hebeln**. "
-    if fund_leverage_limit > 1.3:
-        params_text += "Das ist eine **riskante, aggressive Strategie**, die Ausschläge verstärkt. "
+        params_text += "Sie reagierten **sehr panisch**.\n"
     else:
-        params_text += "Das ist eine **vorsichtige, konservative** Strategie. "
+        params_text += "Sie reagierten **gelassen**.\n"
         
-    params_text += f"• **HFT-Algorithmen** schalteten sich ab, sobald der VIX über **{hft_vix_abs_schaltung:.0f}** stieg. "
-    if hft_vix_abs_schaltung < 30:
-        params_text += "Sie schalteten sich also **sehr früh** ab, was zu plötzlichen Liquiditätslücken führt. "
-    
-    # 3. Die Story: Was ist eigentlich passiert?
+    params_text += f"• **Fonds:** Hebel {fund_leverage_limit:.1f}, "
+    if fund_leverage_limit > 1.3:
+        params_text += "**riskant**, Abflüsse ab VIX {fund_vix_threshold}.\n"
+    else:
+        params_text += "**konservativ**.\n"
+        
+    params_text += f"• **HFTs:** Abschaltung bei VIX > {hft_vix_abs_schaltung}.\n"
+    params_text += f"• **Zentralbank:** Eingriff ab {cb_intervention_schwelle:.0%} Kursverlust.\n\n"
+
     story_text = "**📖 Die Geschichte dieser Simulation:**\n\n"
-    
     if max_vix > 45:
-        story_text += "Es gab eine **extreme Panik-Phase**. Die Angst (VIX) schoss auf über 45. "
+        story_text += "Es gab eine **extreme Panik-Phase** (VIX > 45). "
         if hft_off_days > 5:
             story_text += f"Die HFTs schalteten für {hft_off_days} Tage ab, der Handel brach zusammen. "
-        story_text += "Ohne Käufer brachen die Kurse ein. "
     elif max_vix > 25:
-        story_text += "Es gab eine **moderate Panik-Phase**. Die Anleger wurden nervös. "
+        story_text += "Es gab eine **moderate Panik-Phase**. "
     else:
-        story_text += "Der Markt war **überraschend ruhig**. Die Angst (VIX) blieb die meiste Zeit niedrig. "
+        story_text += "Der Markt war **überraschend ruhig**. "
 
     if avg_fund > 1.2:
-        story_text += f"Die Fonds waren mit durchschnittlich {avg_fund*100:.0f} % Aktienquote stark gehebelt. "
-        story_text += "Als die Kurse fielen, mussten sie Aktien verkaufen, um ihre Kredite zu bedienen – das **verschärfte den Absturz**. "
+        story_text += f"Die Fonds waren stark gehebelt ({avg_fund*100:.0f}%). Als die Kurse fielen, mussten sie verkaufen – das **verschärfte den Absturz**. "
     elif avg_fund < 0.95:
-        story_text += "Die Fonds agierten sehr defensiv, was den Markt stabilisierte. "
+        story_text += "Die Fonds agierten sehr defensiv und stabilisierten den Markt. "
 
     if hft_off_days > 0:
-        story_text += "Für eine Weile verschwand die Liquidität, weil die HFTs den Markt verließen – der Markt war kurzzeitig 'eingefroren'. "
+        story_text += "Für eine Weile verschwand die Liquidität, weil die HFTs den Markt verließen. "
 
-    # 4. Die Zentralbank
     cb_text = ""
     cb_interventions = 0
     for i in range(1, len(prices)-1):
@@ -275,12 +356,11 @@ def generate_user_friendly_insight(
             cb_interventions += 1
     
     if cb_interventions > 0:
-        cb_text = f"**🏦 Rolle der Zentralbank:** Die Notenbank griff **{cb_interventions} Mal** mit massiven Anleihekäufen ein. Sie verhinderte dadurch einen totalen Zusammenbruch."
+        cb_text = f"**🏦 Rolle der Zentralbank:** Die Notenbank griff **{cb_interventions} Mal** ein und verhinderte den totalen Zusammenbruch."
     else:
         cb_text = f"**🏦 Rolle der Zentralbank:** Die Notenbank griff **nicht** ein. Der Markt wurde sich selbst überlassen."
 
-    # Finale Zusammenfassung
-    conclusion = f"**📌 Fazit für Dein Portfolio:** Die Simulation endete mit einer Rendite von **{final_return:.1f} %** und einem maximalen Verlust von **{abs(max_drawdown):.1f} %** zwischendurch."
+    conclusion = f"**📌 Fazit für Dein Portfolio:** Die Simulation endete mit einer Rendite von **{final_return:.1f} %** und einem maximalen Verlust von **{abs(max_drawdown):.1f} %** zwischenzeitlich."
 
     return summary, params_text, story_text, cb_text, conclusion
 
@@ -374,11 +454,10 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             
         st.dataframe(display_df.style.map(highlight_vix, subset=["VIX"]))
 
-        # --- NEU: Die verständliche Erklärungsbox ---
+        # --- ERKLÄRUNGSBOX ---
         st.subheader("🧠 Analyse & Interpretation für Dich")
         
         if scenario != "Benutzerdefiniert (Manuell)":
-            # Falls ein vorgefertigtes Szenario gewählt wurde, zeigen wir den festen Text
             if scenario == "1. Reiner Panik-Crash (HFTs schalten ab)":
                 fixed_text = "**Analyse:** Die HFTs haben bei VIX > 25 abgeschaltet. Dadurch verschwand die Liquidität schlagartig. Privatanleger verkauften massiv, ohne dass Market Maker als Gegenpartei da waren. Der Kurs fiel in einen Flash-Crash."
             elif scenario == "2. Allmächtige Zentralbank (Fed-Put)":
@@ -392,7 +471,6 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             st.info(fixed_text)
             
         else:
-            # Wenn manuell, generiere die verständliche Story
             summary, params, story, cb, conclusion = generate_user_friendly_insight(
                 prices, vix_history, retail_quotes, fund_quotes, hft_active_history,
                 retail_start, retail_panik_verkauf, retail_gier_kauf,
