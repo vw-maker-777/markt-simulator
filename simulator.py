@@ -33,6 +33,9 @@ scenario = st.sidebar.selectbox(
      "4. Ruhiger, stetiger Aufwärtstrend")
 )
 
+# --- NEU: Prüfung, ob ein vordefiniertes Szenario ausgewählt wurde ---
+is_preset_scenario = scenario != "Benutzerdefiniert (Manuell)"
+
 # Szenario-Logik (Setzt die Standardwerte, wenn man das Szenario wechselt)
 if scenario == "1. Panik-Crash (Roboter schalten aus)":
     st.session_state["hft_vix"] = 25
@@ -71,86 +74,89 @@ else:
 
 # --- 1. PRIVATANLEGER ---
 with st.sidebar.expander("1. 🟢 Normale Anleger", expanded=True):
-    retail_start = st.slider("Start-Aktienquote (in %)", 0.0, 1.0, st.session_state.retail_start, 0.05)
+    retail_start = st.slider("Start-Aktienquote (in %)", 0.0, 1.0, st.session_state.retail_start, 0.05, disabled=is_preset_scenario)
     if retail_start < 0.3: st.caption("📌 *Sehr pessimistisch: Haben kaum Aktien gekauft.*")
     elif retail_start < 0.6: st.caption("📌 *Ausgewogen: Halten eine normale Menge Aktien.*")
     elif retail_start < 0.9: st.caption("📌 *Optimistisch: Haben viel in Aktien investiert.*")
     else: st.caption("📌 *Maximal optimistisch: 100% in Aktien.*")
 
-    retail_gier_schwelle = st.slider("Gier-Schwelle", 0.01, 0.10, 0.03, 0.01)
+    retail_gier_schwelle = st.slider("Gier-Schwelle", 0.01, 0.10, 0.03, 0.01, disabled=is_preset_scenario)
     st.caption(f"📌 *Kaufen massiv, wenn der Markt an einem Tag um +{retail_gier_schwelle*100:.1f}% steigt.*")
 
-    retail_panik_schwelle = st.slider("Panik-Schwelle", -0.15, -0.01, -0.05, 0.01)
+    retail_panik_schwelle = st.slider("Panik-Schwelle", -0.15, -0.01, -0.05, 0.01, disabled=is_preset_scenario)
     st.caption(f"📌 *Verkaufen panisch, wenn der Markt um -{abs(retail_panik_schwelle)*100:.1f}% fällt.*")
 
-    retail_panik_verkauf = st.slider("Verkaufen bei Panik (Anteil)", 0.1, 0.5, st.session_state.panic_sell, 0.05)
+    retail_panik_verkauf = st.slider("Verkaufen bei Panik (Anteil)", 0.1, 0.5, st.session_state.panic_sell, 0.05, disabled=is_preset_scenario)
     if retail_panik_verkauf < 0.15: st.caption("📌 *Gelassen: Verkaufen fast gar nicht.*")
     elif retail_panik_verkauf < 0.30: st.caption("📌 *Normal: Verkaufen gemäßigt.*")
     else: st.caption("📌 *Hektisch: Verkaufen fast alles – löst Crashs aus!*")
 
-    retail_gier_kauf = st.slider("Kaufen bei Gier (Anteil)", 0.05, 0.3, 0.1, 0.02)
+    retail_gier_kauf = st.slider("Kaufen bei Gier (Anteil)", 0.05, 0.3, 0.1, 0.02, disabled=is_preset_scenario)
     if retail_gier_kauf < 0.10: st.caption("📌 *Vorsichtig: Kaufen nur langsam.*")
     else: st.caption("📌 *Gierig: Kaufen extrem schnell – treibt Blasen.*")
 
 # --- 2. INSTITUTIONELLE FONDS ---
 with st.sidebar.expander("2. 🔴 Profi-Fonds (Große Anleger)"):
-    fund_start = st.slider("Start-Risiko (Hebel)", 0.0, 1.5, st.session_state.fund_leverage, 0.05)
+    fund_start = st.slider("Start-Risiko (Hebel)", 0.0, 1.5, st.session_state.fund_leverage, 0.05, disabled=is_preset_scenario)
     if fund_start < 1.0: st.caption("📌 *Konservativ: Kein Risiko, kaum Zwangsverkäufe.*")
     elif fund_start < 1.3: st.caption("📌 *Leicht riskant: Moderate Verstärkung.*")
     else: st.caption("📌 *Sehr riskant: Große Verstärkung, aber bei Crash massive Verluste!*")
 
-    fund_leverage_limit = st.slider("Maximales Risiko (Hebel)", 1.0, 2.0, 1.1, 0.1)
+    fund_leverage_limit = st.slider("Maximales Risiko (Hebel)", 1.0, 2.0, 1.1, 0.1, disabled=is_preset_scenario)
     if fund_leverage_limit < 1.2: st.caption("📌 *Sicher: Keine gefährlichen Wetten.*")
     elif fund_leverage_limit < 1.5: st.caption("📌 *Moderat: Etwas Risiko für mehr Gewinne.*")
     else: st.caption("📌 *Riskant: Hoher Hebel führt oft zu Kettenreaktionen.*")
 
-    fund_vix_threshold = st.slider("Angst-Schwelle für Geldabzug", 20, 60, 30, 5)
+    fund_vix_threshold = st.slider("Angst-Schwelle für Geldabzug", 20, 60, 30, 5, disabled=is_preset_scenario)
     st.caption(f"📌 *Wenn die Angst (VIX) über {fund_vix_threshold} steigt, ziehen Kunden ihr Geld ab.*")
 
-    fund_abfluss_rate = st.slider("Abzug bei Angst", 0.05, 0.5, 0.2, 0.05)
+    fund_abfluss_rate = st.slider("Abzug bei Angst", 0.05, 0.5, 0.2, 0.05, disabled=is_preset_scenario)
     if fund_abfluss_rate < 0.15: st.caption("📌 *Geduldige Kunden: Wenig Abzug.*")
     else: st.caption("📌 *Panische Kunden: Massiver Abzug, der Abstürze verschärft.*")
 
 # --- 3. HFT / MARKET MAKER ---
 with st.sidebar.expander("3. 🟣 Handelsroboter (HFTs)"):
-    hft_capital = st.number_input("Liquidität (Geld)", 1000, 50000, 10000, 1000)
+    hft_capital = st.number_input("Liquidität (Geld)", 1000, 50000, 10000, 1000, disabled=is_preset_scenario)
     if hft_capital < 5000: st.caption("📌 *Wenig Geld: Markt ist oft ausgetrocknet.*")
     else: st.caption("📌 *Viel Geld: Roboter versorgen den Markt ständig mit Liquidität.*")
 
-    hft_vix_abs_schaltung = st.slider("Abschaltung bei Angst", 20, 80, st.session_state.hft_vix, 5)
+    hft_vix_abs_schaltung = st.slider("Abschaltung bei Angst", 20, 80, st.session_state.hft_vix, 5, disabled=is_preset_scenario)
     if hft_vix_abs_schaltung < 30: st.caption("📌 *Frühe Abschaltung: Roboter verschwinden sofort → Flash-Crash-Gefahr!*")
     elif hft_vix_abs_schaltung < 50: st.caption("📌 *Normale Abschaltung: Bei großer Angst schalten sie ab.*")
     else: st.caption("📌 *Robust: Roboter bleiben auch in Krisen aktiv – sehr stabil.*")
 
 # --- 4. ZENTRALBANK ---
 with st.sidebar.expander("4. 🏦 Notenbank"):
-    cb_intervention_schwelle = st.slider("Eingriff bei Crash", 0.05, 0.30, st.session_state.cb_intervention, 0.02)
+    cb_intervention_schwelle = st.slider("Eingriff bei Crash", 0.05, 0.30, st.session_state.cb_intervention, 0.02, disabled=is_preset_scenario)
     if cb_intervention_schwelle < 0.10: st.caption("📌 *Aktiv: Greift bei kleinsten Verlusten ein.*")
     elif cb_intervention_schwelle < 0.20: st.caption("📌 *Abwartend: Greift bei moderaten Verlusten ein.*")
     else: st.caption("📌 *Passiv: Greift erst bei schweren Crashs ein – viel Schmerz vorher.*")
 
-    cb_kauf_volumen = st.slider("Geldmenge beim Eingriff", 0.01, 0.10, 0.05, 0.01)
+    cb_kauf_volumen = st.slider("Geldmenge beim Eingriff", 0.01, 0.10, 0.05, 0.01, disabled=is_preset_scenario)
     if cb_kauf_volumen < 0.04: st.caption("📌 *Kleine Rettungspakete: Schwacher Effekt.*")
     else: st.caption("📌 *Große Rettungspakete: Starke Kurssprünge.*")
 
-    cb_vola_reduktion = st.slider("Beruhigung der Angst (%)", 0.2, 0.8, 0.30, 0.05)
+    cb_vola_reduktion = st.slider("Beruhigung der Angst (%)", 0.2, 0.8, 0.30, 0.05, disabled=is_preset_scenario)
     if cb_vola_reduktion < 0.4: st.caption("📌 *Geringe Beruhigung: Die Angst bleibt hoch.*")
     else: st.caption("📌 *Starke Beruhigung: Die Angst fällt drastisch.*")
 
 # --- 5. MARKTUMFELD ---
 with st.sidebar.expander("5. 🌍 Zufällige Schocks"):
-    schock_volatilitaet = st.slider("Tägliches Rauschen (%)", 0.5, 5.0, st.session_state.schock_volatility, 0.5) / 100
+    schock_volatilitaet = st.slider("Tägliches Rauschen (%)", 0.5, 5.0, st.session_state.schock_volatility, 0.5, disabled=is_preset_scenario) / 100
     if schock_volatilitaet*100 < 1.5: st.caption("📌 *Ruhig: Wenig Schwankungen.*")
     elif schock_volatilitaet*100 < 3.0: st.caption("📌 *Normal: Moderate Schwankungen.*")
     else: st.caption("📌 *Stürmisch: Hohe tägliche Schwankungen – Markt zittert.*")
 
-    schock_wahrscheinlichkeit = st.slider("Wahrscheinlichkeit großer Schocks (%)", 0.5, 10.0, st.session_state.schock_prob, 0.5) / 100
+    schock_wahrscheinlichkeit = st.slider("Wahrscheinlichkeit großer Schocks (%)", 0.5, 10.0, st.session_state.schock_prob, 0.5, disabled=is_preset_scenario) / 100
     if schock_wahrscheinlichkeit*100 < 2.0: st.caption("📌 *Seltene Krisen: Keine großen Überraschungen.*")
     elif schock_wahrscheinlichkeit*100 < 5.0: st.caption("📌 *Gelegentliche Krisen: Ab und zu ein Crash.*")
     else: st.caption("📌 *Häufige Panik: Ständige Schocks.*")
 
-    tage = st.slider("Simulations-Länge (Tage)", 100, 2000, 500, 50)
+    tage = st.slider("Simulations-Länge (Tage)", 100, 2000, 500, 50, disabled=is_preset_scenario)
     st.caption(f"📌 *Simuliert {tage} Tage (ca. {tage/250:.1f} Jahre).*")
+
+if is_preset_scenario:
+    st.sidebar.info("🔒 Dies ist ein vorgefertigtes Szenario. Die Regler sind gesperrt. Wähle 'Benutzerdefiniert', um sie zu bearbeiten.")
 
 # --- Simulations-Funktion ---
 def run_simulation(progress_bar, **kwargs):
@@ -345,7 +351,7 @@ def generate_user_friendly_insight(
 
     return summary, params_text, story_text, cb_text, conclusion, lesson
 
-# --- KORRIGIERTE COACH-FUNKTION (DYNAMISCH FÜR HEBEL) ---
+# --- KORRIGIERTE COACH-FUNKTION ---
 def generate_coach_explanation(final_return, max_vix, hft_off_days, retail_panik_verkauf, retail_start, fund_leverage_limit):
     if hft_off_days == 0:
         hft_status = "aktive HFTs"
