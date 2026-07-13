@@ -340,21 +340,45 @@ def generate_user_friendly_insight(
 
     return summary, params_text, story_text, cb_text, conclusion, lesson
 
+# --- KORRIGIERTE & DYNAMISCHE COACH-FUNKTION ---
 def generate_coach_explanation(final_return, max_vix, hft_off_days, retail_panik_verkauf, retail_start, fund_leverage_limit):
+    
+    # 1. Dynamischen HFT-Status ermitteln
+    if hft_off_days == 0:
+        hft_status = "aktive HFTs"
+    else:
+        hft_status = f"zeitweise abgeschaltete HFTs ({hft_off_days} Tage)"
+
     text = "**🔍 Was ist hier passiert?**\n\n"
+
+    # 2. Priorität 0: Massiver Crash (Fat Tail)
     if final_return < -15:
-        text += "💥 **Schwerer Crash trotz guter Einstellungen!** Die Wahrscheinlichkeit (2% Schock) hat einen extremen 'Fat Tail' getroffen. Selbst moderate Panik und aktive HFTs haben den Sturz nicht aufhalten können. Der Simulator zeigt hier eine realistische, aber seltene Worst-Case-Situation.\n\n"
+        if hft_off_days > 3:
+            text += f"💥 **Schwerer Crash trotz guter Einstellungen!** Die Wahrscheinlichkeit (2% Schock) hat einen extremen 'Fat Tail' getroffen. In der Krise waren jedoch **{hft_status}** für mehrere Tage ausgeschaltet. Ohne Liquidität brach der Markt zusammen.\n\n"
+        else:
+            text += f"💥 **Schwerer Crash trotz guter Einstellungen!** Die Wahrscheinlichkeit (2% Schock) hat einen extremen 'Fat Tail' getroffen. Selbst moderate Panik und **{hft_status}** haben den Sturz nicht aufhalten können.\n\n"
+
+    # 3. Priorität 1: Spezifische Liquiditätskrise durch HFT-Abschaltung
     elif max_vix > 45 and hft_off_days > 3:
-        text += "⚠️ **Liquiditätskrise durch HFT-Abschaltung!** Der VIX schoss über 45, die HFTs verließen den Markt. Ohne Liquidität brach der Markt zusammen.\n\n"
+        text += f"⚠️ **Liquiditätskrise durch HFT-Abschaltung!** Der VIX schoss über 45, die HFTs verließen den Markt für {hft_off_days} Tage. Ohne Liquidität brach der Markt zusammen.\n\n"
+
+    # 4. Priorität 2: Panische Anleger
     elif retail_panik_verkauf > 0.35:
         text += "🚨 **Problem: Privatanleger sind zu panisch.** Die Panik-Verkaufsrate ist hoch. Sie verkaufen bei jedem kleinen Rücksetzer massiv.\n\n"
+
+    # 5. Priorität 3: Zu niedrige Startquote
     elif retail_start < 0.50:
         text += "⚠️ **Problem: Start-Aktienquote zu niedrig.** Zu wenig langfristige Kaufkraft im Markt.\n\n"
+
+    # 6. Priorität 4: Fonds zu stark gehebelt
     elif fund_leverage_limit > 1.5:
         text += "💥 **Problem: Fonds zu stark gehebelt.** Zwangsverkäufe verschärfen den Absturz.\n\n"
+
+    # 7. Standard: Stabile Einstellungen
     else:
         text += "✅ **Stabile Einstellungen.** Die Parameter sind gut gewählt. Der Kurs folgt Angebot und Nachfrage.\n\n"
-    
+
+    # 8. Ergebnis-Zusammenfassung
     if final_return < -10:
         text += f"📉 **Das Ergebnis:** Der Markt brach um **{abs(final_return):.1f} %** ein. "
     elif final_return > 10:
