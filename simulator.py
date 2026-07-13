@@ -240,7 +240,7 @@ def run_simulation(**kwargs):
             liquidity = max(100, total_liquidity * 0.2)
         
         if liquidity > 0:
-            price_change = 0.0001 + (net_demand / liquidity) * 0.1
+            price_change = 0.0002 + (net_demand / liquidity) * 0.1
         else:
             price_change = 0.0001 - 0.001
         
