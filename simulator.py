@@ -158,7 +158,7 @@ with st.sidebar.expander("5. 🌍 Zufällige Schocks"):
 if is_preset_scenario:
     st.sidebar.info("🔒 Dies ist ein vorgefertigtes Szenario. Die Regler sind gesperrt. Wähle 'Benutzerdefiniert', um sie zu bearbeiten.")
 
-# --- Simulations-Funktion (mit korrigierter Zielquote) ---
+# --- Simulations-Funktion (mit korrigierter Liquidität und harter 1%-Begrenzung) ---
 def run_simulation(progress_bar, **kwargs):
     tage = kwargs.get('tage', 500)
     retail_start = kwargs.get('retail_start', 0.6)
@@ -207,8 +207,8 @@ def run_simulation(progress_bar, **kwargs):
         else:
             ret_5d = 0
         
-        # --- KORREKTUR: target_retail ist jetzt KONSTANT (kein ewiger Anstieg mehr) ---
-        target_retail = retail_start  # anstatt min(1.0, retail_start + (day / tage) * 0.10)
+        # Zielquote ist jetzt konstant (kein ewiger Anstieg mehr)
+        target_retail = retail_start
         if ret_5d < retail_panik_schwelle:
             retail_quote = max(0, retail_quote - retail_panik_verkauf)
         elif ret_5d > retail_gier_schwelle:
@@ -216,7 +216,7 @@ def run_simulation(progress_bar, **kwargs):
         else:
             retail_quote += 0.02 * (target_retail - retail_quote)
         
-        target_fund = min(fund_leverage_limit, fund_start)  # auch Fonds-Ziel konstant halten
+        target_fund = min(fund_leverage_limit, fund_start)
         flows = 0
         if vix > fund_vix_threshold:
             flows = -fund_abfluss_rate
@@ -248,15 +248,16 @@ def run_simulation(progress_bar, **kwargs):
         if hft_active:
             liquidity = total_liquidity
         else:
-            liquidity = max(100, total_liquidity * 0.2)
+            # Liquidität während HFT-Ausfall auf 50% statt 20% erhöht
+            liquidity = max(100, total_liquidity * 0.5)
         
-        # --- Berechnung der Preisänderung mit Dämpfung und Begrenzung ---
+        # --- Berechnung der Preisänderung mit Dämpfung und harter Begrenzung ---
         if liquidity > 0:
-            # Dämpfungsfaktor: je höher der Kurs, desto weniger Impact hat die gleiche Nachfrage
+            # Dämpfungsfaktor: je höher der Kurs, desto weniger Impact
             damp_factor = 100000.0 / (price + 100000.0)
             raw_change = 0.0002 + (net_demand / liquidity) * 0.1 * damp_factor
-            # Harte Begrenzung auf ±5 % pro Tag
-            price_change = max(-0.05, min(0.05, raw_change))
+            # Harte Begrenzung auf maximal ±1 % pro Tag (statt 5 %)
+            price_change = max(-0.01, min(0.01, raw_change))
         else:
             price_change = 0.0002 - 0.001
         
