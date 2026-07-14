@@ -158,7 +158,7 @@ with st.sidebar.expander("5. 🌍 Zufällige Schocks"):
 if is_preset_scenario:
     st.sidebar.info("🔒 Dies ist ein vorgefertigtes Szenario. Die Regler sind gesperrt. Wähle 'Benutzerdefiniert', um sie zu bearbeiten.")
 
-# --- Simulations-Funktion (KORREKTUR: LIQUIDITÄT AUF 80%, IMPACT HALBIERT) ---
+# --- Simulations-Funktion (KORREKTUR: KEINE LIQUIDITÄT IM NENNER) ---
 def run_simulation(progress_bar, **kwargs):
     tage = kwargs.get('tage', 500)
     retail_start = kwargs.get('retail_start', 0.6)
@@ -190,7 +190,6 @@ def run_simulation(progress_bar, **kwargs):
     hft_active = True
     volume_retail = 100
     volume_fund = 1000
-    total_volume = volume_retail + volume_fund
     retail_quotes = [retail_quote]
     fund_quotes = [fund_quote]
     hft_active_history = [1]
@@ -244,18 +243,10 @@ def run_simulation(progress_bar, **kwargs):
         fund_net = (fund_quote - fund_quote_prev) * fund_volume
         net_demand = retail_net + fund_net
         
-        # --- KORREKTUR: Liquidität auf 80% erhöht, Impact auf 0.0005 halbiert ---
-        if hft_active:
-            liquidity = total_volume
-        else:
-            # Statt 20% nun 80% -> Multiplikator von 5 auf 1.25 reduziert
-            liquidity = max(100, total_volume * 0.8)
-        
-        if liquidity > 0:
-            # Drift 0.0001, Impact 0.0005 (halbiert)
-            price_change = 0.0001 + (net_demand / liquidity) * 0.0005
-        else:
-            price_change = 0.0001 - 0.001
+        # --- KORREKTUR: KEINE DIVISION DURCH LIQUIDITÄT MEHR ---
+        # Der Preis reagiert jetzt nur noch auf den reinen Net-Demand.
+        # Der Faktor 0.000002 ist extrem klein, um eine realistische Markttiefe abzubilden.
+        price_change = 0.0001 + net_demand * 0.000002
         
         price_change += shock
         price = price * (1 + price_change)
