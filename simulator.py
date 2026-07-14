@@ -158,7 +158,7 @@ with st.sidebar.expander("5. 🌍 Zufällige Schocks"):
 if is_preset_scenario:
     st.sidebar.info("🔒 Dies ist ein vorgefertigtes Szenario. Die Regler sind gesperrt. Wähle 'Benutzerdefiniert', um sie zu bearbeiten.")
 
-# --- Simulations-Funktion (mit korrigierter Liquidität und harter 1%-Begrenzung) ---
+# --- Simulations-Funktion (MIT DER NEUEN, ENDGÜLTIGEN PREISLOGIK) ---
 def run_simulation(progress_bar, **kwargs):
     tage = kwargs.get('tage', 500)
     retail_start = kwargs.get('retail_start', 0.6)
@@ -207,7 +207,7 @@ def run_simulation(progress_bar, **kwargs):
         else:
             ret_5d = 0
         
-        # Zielquote ist jetzt konstant (kein ewiger Anstieg mehr)
+        # Zielquote ist konstant (Startquote)
         target_retail = retail_start
         if ret_5d < retail_panik_schwelle:
             retail_quote = max(0, retail_quote - retail_panik_verkauf)
@@ -240,6 +240,7 @@ def run_simulation(progress_bar, **kwargs):
             hft_volume = int(hft_capital / (vix_dec ** 2 + 0.001))
             hft_volume = max(100, hft_volume)
         
+        # Netto-Demand (kleine Veränderungen, aber durch Liquidität verstärkt)
         retail_net = (retail_quote - retail_quote_prev) * volume_retail
         fund_net = (fund_quote - fund_quote_prev) * fund_volume
         net_demand = retail_net + fund_net
@@ -248,19 +249,17 @@ def run_simulation(progress_bar, **kwargs):
         if hft_active:
             liquidity = total_liquidity
         else:
-            # Liquidität während HFT-Ausfall auf 50% statt 20% erhöht
-            liquidity = max(100, total_liquidity * 0.5)
+            liquidity = max(100, total_liquidity * 0.5)  # weiterhin 50% Liquidität
         
-        # --- Berechnung der Preisänderung mit Dämpfung und harter Begrenzung ---
-        if liquidity > 0:
-            # Dämpfungsfaktor: je höher der Kurs, desto weniger Impact
-            damp_factor = 100000.0 / (price + 100000.0)
-            raw_change = 0.0002 + (net_demand / liquidity) * 0.1 * damp_factor
-            # Harte Begrenzung auf maximal ±1 % pro Tag (statt 5 %)
-            price_change = max(-0.01, min(0.01, raw_change))
-        else:
-            price_change = 0.0002 - 0.001
+        # --- NEUE, EXPLOSIONSFREIE LOGIK ---
+        # Der Drift bleibt konstant 0.0002 (5% p.a.)
+        # Der Einfluss des Net-Demands wird durch die Liquidität geteilt und mit 0.01 multipliziert (stark reduziert)
+        # Zusätzlich wird die Änderung durch eine starke nichtlineare Dämpfung gebremst, die bei hohen Preisen wirkt.
+        raw_change = 0.0002 + (net_demand / liquidity) * 0.01   # nur 1% der Nachfrage wirkt
+        damping = 100.0 / (price + 100.0)  # Bei Preis 100: 0.5, bei 1000: 0.09, bei 10000: 0.01
+        price_change = raw_change * damping
         
+        # Keine harte Begrenzung mehr! Die Dämpfung allein stoppt die Explosion.
         price_change += shock
         price = price * (1 + price_change)
         price = max(1, price)
