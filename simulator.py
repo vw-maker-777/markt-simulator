@@ -158,7 +158,7 @@ with st.sidebar.expander("5. 🌍 Zufällige Schocks"):
 if is_preset_scenario:
     st.sidebar.info("🔒 Dies ist ein vorgefertigtes Szenario. Die Regler sind gesperrt. Wähle 'Benutzerdefiniert', um sie zu bearbeiten.")
 
-# --- Simulations-Funktion ---
+# --- Simulations-Funktion (KORREKTUR: DRIFT UND IMPACT REDUZIERT) ---
 def run_simulation(progress_bar, **kwargs):
     tage = kwargs.get('tage', 500)
     retail_start = kwargs.get('retail_start', 0.6)
@@ -250,9 +250,11 @@ def run_simulation(progress_bar, **kwargs):
             liquidity = max(100, total_volume * 0.2)
         
         if liquidity > 0:
-            price_change = 0.0002 + (net_demand / liquidity) * 0.002
+            # --- KORREKTUR: Drift von 0.0002 auf 0.0001 gesenkt (ca. 2,5% p.a.) ---
+            # --- Impact von 0.002 auf 0.001 halbiert, um die Rallye zu dämpfen ---
+            price_change = 0.0001 + (net_demand / liquidity) * 0.001
         else:
-            price_change = 0.0002 - 0.001
+            price_change = 0.0001 - 0.001
         
         price_change += shock
         price = price * (1 + price_change)
@@ -304,7 +306,6 @@ def generate_user_friendly_insight(
 
     params_text = "**⚙️ Wie waren die Marktteilnehmer eingestellt?**\n\n"
     
-    # --- KORREKTUR: Intelligente Anleger-Analyse ---
     if retail_panik_verkauf > 0.3:
         panik_verhalten = "**sehr panisch**"
     else:
@@ -312,7 +313,6 @@ def generate_user_friendly_insight(
         
     params_text += f"• **🟢 Privatanleger:** Startquote {retail_start*100:.0f}%, Panik-Verkauf {retail_panik_verkauf:.1f}. Sie reagierten {panik_verhalten}. "
     
-    # Zusätzliche Warnung bei hoher Quote und massivem Crash durch Illiquidität
     if retail_start >= 0.9 and max_drawdown < -50 and hft_off_days > 20:
         params_text += f"⚠️ **Illiquiditätsfalle:** Die extrem hohe Startquote von {retail_start*100:.0f}% in Kombination mit dem wochenlangen Ausfall der HFTs ({hft_off_days} Tage) führte dazu, dass sie ihre Aktien nicht verkaufen konnten. Sie erlitten einen fast 100%igen **Totalverlust**, obwohl sie nicht aktiv panisch verkauft haben.\n"
     else:
@@ -465,10 +465,14 @@ if st.button("🚀 Simulation neu starten", type="primary"):
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Start", f"{prices[0]:.2f}")
     col1.caption("Startkurs (immer 100.00)")
+    
+    # --- KORREKTUR: Die Caption verwendet jetzt die tatsächliche Anzahl der Tage ---
     col2.metric("Ende", f"{prices[-1]:.2f}")
-    col2.caption("Endkurs nach 500 Tagen")
+    col2.caption(f"Endkurs nach {tage} Tagen")
+
     col3.metric("Rendite", f"{(prices[-1]/prices[0]-1)*100:.1f} %")
     col3.caption("Gesamte prozentuale Veränderung")
+
     col4.metric("Max. VIX", f"{max(vix_history):.1f}")
     col4.caption("Höchste gemessene Angst")
     
