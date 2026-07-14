@@ -158,7 +158,7 @@ with st.sidebar.expander("5. 🌍 Zufällige Schocks"):
 if is_preset_scenario:
     st.sidebar.info("🔒 Dies ist ein vorgefertigtes Szenario. Die Regler sind gesperrt. Wähle 'Benutzerdefiniert', um sie zu bearbeiten.")
 
-# --- Simulations-Funktion (KORREKTUR: DRIFT UND IMPACT REDUZIERT) ---
+# --- Simulations-Funktion (KORREKTUR: LIQUIDITÄT AUF 80%, IMPACT HALBIERT) ---
 def run_simulation(progress_bar, **kwargs):
     tage = kwargs.get('tage', 500)
     retail_start = kwargs.get('retail_start', 0.6)
@@ -244,15 +244,16 @@ def run_simulation(progress_bar, **kwargs):
         fund_net = (fund_quote - fund_quote_prev) * fund_volume
         net_demand = retail_net + fund_net
         
+        # --- KORREKTUR: Liquidität auf 80% erhöht, Impact auf 0.0005 halbiert ---
         if hft_active:
             liquidity = total_volume
         else:
-            liquidity = max(100, total_volume * 0.2)
+            # Statt 20% nun 80% -> Multiplikator von 5 auf 1.25 reduziert
+            liquidity = max(100, total_volume * 0.8)
         
         if liquidity > 0:
-            # --- KORREKTUR: Drift von 0.0002 auf 0.0001 gesenkt (ca. 2,5% p.a.) ---
-            # --- Impact von 0.002 auf 0.001 halbiert, um die Rallye zu dämpfen ---
-            price_change = 0.0001 + (net_demand / liquidity) * 0.001
+            # Drift 0.0001, Impact 0.0005 (halbiert)
+            price_change = 0.0001 + (net_demand / liquidity) * 0.0005
         else:
             price_change = 0.0001 - 0.001
         
@@ -466,7 +467,7 @@ if st.button("🚀 Simulation neu starten", type="primary"):
     col1.metric("Start", f"{prices[0]:.2f}")
     col1.caption("Startkurs (immer 100.00)")
     
-    # --- KORREKTUR: Die Caption verwendet jetzt die tatsächliche Anzahl der Tage ---
+    # Die Caption verwendet jetzt die tatsächliche Anzahl der Tage
     col2.metric("Ende", f"{prices[-1]:.2f}")
     col2.caption(f"Endkurs nach {tage} Tagen")
 
