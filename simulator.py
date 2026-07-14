@@ -158,7 +158,7 @@ with st.sidebar.expander("5. 🌍 Zufällige Schocks"):
 if is_preset_scenario:
     st.sidebar.info("🔒 Dies ist ein vorgefertigtes Szenario. Die Regler sind gesperrt. Wähle 'Benutzerdefiniert', um sie zu bearbeiten.")
 
-# --- Simulations-Funktion (MIT DER NEUEN, ENDGÜLTIGEN PREISLOGIK) ---
+# --- Simulations-Funktion (mit der neuen, stabilen Logik) ---
 def run_simulation(progress_bar, **kwargs):
     tage = kwargs.get('tage', 500)
     retail_start = kwargs.get('retail_start', 0.6)
@@ -190,6 +190,7 @@ def run_simulation(progress_bar, **kwargs):
     hft_active = True
     volume_retail = 100
     volume_fund = 1000
+    total_volume = volume_retail + volume_fund  # = 1100 (konstant)
     retail_quotes = [retail_quote]
     fund_quotes = [fund_quote]
     hft_active_history = [1]
@@ -207,7 +208,6 @@ def run_simulation(progress_bar, **kwargs):
         else:
             ret_5d = 0
         
-        # Zielquote ist konstant (Startquote)
         target_retail = retail_start
         if ret_5d < retail_panik_schwelle:
             retail_quote = max(0, retail_quote - retail_panik_verkauf)
@@ -240,26 +240,20 @@ def run_simulation(progress_bar, **kwargs):
             hft_volume = int(hft_capital / (vix_dec ** 2 + 0.001))
             hft_volume = max(100, hft_volume)
         
-        # Netto-Demand (kleine Veränderungen, aber durch Liquidität verstärkt)
         retail_net = (retail_quote - retail_quote_prev) * volume_retail
         fund_net = (fund_quote - fund_quote_prev) * fund_volume
         net_demand = retail_net + fund_net
         
-        total_liquidity = volume_retail + volume_fund
+        # --- NEUE, ULTIMATIVE PREISLOGIK (OHNE LIQUIDITÄTS-DIVISION) ---
         if hft_active:
-            liquidity = total_liquidity
+            # Normale Marktphase: Der Preis reagiert auf Angebot und Nachfrage.
+            # Der Faktor 0.005 ist ein Impact-Multiplikator, der den Preis sanft bewegt.
+            price_change = 0.0002 + (net_demand / total_volume) * 0.005
         else:
-            liquidity = max(100, total_liquidity * 0.5)  # weiterhin 50% Liquidität
+            # HFTs abgeschaltet: Der Markt friert ein! KEIN Handel möglich.
+            price_change = 0.0
         
-        # --- NEUE, EXPLOSIONSFREIE LOGIK ---
-        # Der Drift bleibt konstant 0.0002 (5% p.a.)
-        # Der Einfluss des Net-Demands wird durch die Liquidität geteilt und mit 0.01 multipliziert (stark reduziert)
-        # Zusätzlich wird die Änderung durch eine starke nichtlineare Dämpfung gebremst, die bei hohen Preisen wirkt.
-        raw_change = 0.0002 + (net_demand / liquidity) * 0.01   # nur 1% der Nachfrage wirkt
-        damping = 100.0 / (price + 100.0)  # Bei Preis 100: 0.5, bei 1000: 0.09, bei 10000: 0.01
-        price_change = raw_change * damping
-        
-        # Keine harte Begrenzung mehr! Die Dämpfung allein stoppt die Explosion.
+        # Jeder Schock wirkt sich trotzdem auf den Kurs aus.
         price_change += shock
         price = price * (1 + price_change)
         price = max(1, price)
