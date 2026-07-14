@@ -158,7 +158,7 @@ with st.sidebar.expander("5. 🌍 Zufällige Schocks"):
 if is_preset_scenario:
     st.sidebar.info("🔒 Dies ist ein vorgefertigtes Szenario. Die Regler sind gesperrt. Wähle 'Benutzerdefiniert', um sie zu bearbeiten.")
 
-# --- Simulations-Funktion (KORREKTUR: LIQUIDITÄT ANPASSEN, ABER ANGEBOT UND NACHFRAGE NICHT AUF NULL SETZEN) ---
+# --- Simulations-Funktion ---
 def run_simulation(progress_bar, **kwargs):
     tage = kwargs.get('tage', 500)
     retail_start = kwargs.get('retail_start', 0.6)
@@ -244,17 +244,12 @@ def run_simulation(progress_bar, **kwargs):
         fund_net = (fund_quote - fund_quote_prev) * fund_volume
         net_demand = retail_net + fund_net
         
-        # --- KORREKTUR: Liquidität steuern, aber niemals auf 0 setzen ---
-        # Wenn HFTs aktiv sind, haben wir volle Liquidität (100).
-        # Wenn HFTs abgeschaltet sind, bricht die Liquidität auf 20% ein.
-        # Angebot und Nachfrage wirken bei geringerer Liquidität viel stärker auf den Preis (Multiplikator).
         if hft_active:
             liquidity = total_volume
         else:
             liquidity = max(100, total_volume * 0.2)
         
         if liquidity > 0:
-            # Der Impact-Faktor 0.002 sorgt für sanfte, aber realistische Bewegungen
             price_change = 0.0002 + (net_demand / liquidity) * 0.002
         else:
             price_change = 0.0002 - 0.001
@@ -308,9 +303,20 @@ def generate_user_friendly_insight(
     else: summary = f"💥 **Schwerer Crash:** Der Markt brach um **{abs(final_return):.1f} %** ein."
 
     params_text = "**⚙️ Wie waren die Marktteilnehmer eingestellt?**\n\n"
-    params_text += f"• **🟢 Privatanleger:** Startquote {retail_start*100:.0f}%, Panik-Verkauf {retail_panik_verkauf:.1f}. "
-    if retail_panik_verkauf > 0.3: params_text += "Sie reagierten **sehr panisch**.\n"
-    else: params_text += "Sie reagierten **gelassen**.\n"
+    
+    # --- KORREKTUR: Intelligente Anleger-Analyse ---
+    if retail_panik_verkauf > 0.3:
+        panik_verhalten = "**sehr panisch**"
+    else:
+        panik_verhalten = "**gelassen**"
+        
+    params_text += f"• **🟢 Privatanleger:** Startquote {retail_start*100:.0f}%, Panik-Verkauf {retail_panik_verkauf:.1f}. Sie reagierten {panik_verhalten}. "
+    
+    # Zusätzliche Warnung bei hoher Quote und massivem Crash durch Illiquidität
+    if retail_start >= 0.9 and max_drawdown < -50 and hft_off_days > 20:
+        params_text += f"⚠️ **Illiquiditätsfalle:** Die extrem hohe Startquote von {retail_start*100:.0f}% in Kombination mit dem wochenlangen Ausfall der HFTs ({hft_off_days} Tage) führte dazu, dass sie ihre Aktien nicht verkaufen konnten. Sie erlitten einen fast 100%igen **Totalverlust**, obwohl sie nicht aktiv panisch verkauft haben.\n"
+    else:
+        params_text += "\n"
         
     params_text += f"• **🔴 Fonds:** Hebel {fund_leverage_limit:.1f}. "
     if fund_leverage_limit > 1.3: params_text += "**Riskant**: Stark gehebelt.\n"
