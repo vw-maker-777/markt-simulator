@@ -158,7 +158,7 @@ with st.sidebar.expander("5. 🌍 Zufällige Schocks"):
 if is_preset_scenario:
     st.sidebar.info("🔒 Dies ist ein vorgefertigtes Szenario. Die Regler sind gesperrt. Wähle 'Benutzerdefiniert', um sie zu bearbeiten.")
 
-# --- Simulations-Funktion ---
+# --- Simulations-Funktion (KORRIGIERTE LOGIK) ---
 def run_simulation(progress_bar, **kwargs):
     tage = kwargs.get('tage', 500)
     retail_start = kwargs.get('retail_start', 0.6)
@@ -249,6 +249,7 @@ def run_simulation(progress_bar, **kwargs):
         else:
             liquidity = max(100, total_liquidity * 0.2)
         
+        # --- KORREKTUR: KEINE /500 FALLE MEHR ---
         if liquidity > 0:
             price_change = 0.0002 + (net_demand / liquidity) * 0.1
         else:
