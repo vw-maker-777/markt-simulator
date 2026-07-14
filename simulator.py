@@ -158,7 +158,7 @@ with st.sidebar.expander("5. 🌍 Zufällige Schocks"):
 if is_preset_scenario:
     st.sidebar.info("🔒 Dies ist ein vorgefertigtes Szenario. Die Regler sind gesperrt. Wähle 'Benutzerdefiniert', um sie zu bearbeiten.")
 
-# --- Simulations-Funktion (KORREKTUR: KEINE LIQUIDITÄT IM NENNER) ---
+# --- Simulations-Funktion (MIT NICHTLINEARER DÄMPFUNG UND HARD CAP) ---
 def run_simulation(progress_bar, **kwargs):
     tage = kwargs.get('tage', 500)
     retail_start = kwargs.get('retail_start', 0.6)
@@ -190,6 +190,7 @@ def run_simulation(progress_bar, **kwargs):
     hft_active = True
     volume_retail = 100
     volume_fund = 1000
+    total_volume = volume_retail + volume_fund
     retail_quotes = [retail_quote]
     fund_quotes = [fund_quote]
     hft_active_history = [1]
@@ -243,10 +244,15 @@ def run_simulation(progress_bar, **kwargs):
         fund_net = (fund_quote - fund_quote_prev) * fund_volume
         net_demand = retail_net + fund_net
         
-        # --- KORREKTUR: KEINE DIVISION DURCH LIQUIDITÄT MEHR ---
-        # Der Preis reagiert jetzt nur noch auf den reinen Net-Demand.
-        # Der Faktor 0.000002 ist extrem klein, um eine realistische Markttiefe abzubilden.
-        price_change = 0.0001 + net_demand * 0.000002
+        # --- ENDGÜLTIGE, NICHTLINEARE DÄMPFUNG + HARD CAP ---
+        # 1. Dämpfungsfaktor: Je höher der Preis, desto weniger Impact.
+        damp_factor = 1000.0 / (price + 1000.0)
+        
+        # 2. Basis-Änderung: Drift + Net-Demand / Gesamtvolumen * Impact-Faktor * Dämpfung
+        raw_change = 0.0001 + (net_demand / total_volume) * 0.001 * damp_factor
+        
+        # 3. Harte Begrenzung auf ±1 % pro Tag (verhindert jede Explosion)
+        price_change = max(-0.01, min(0.01, raw_change))
         
         price_change += shock
         price = price * (1 + price_change)
