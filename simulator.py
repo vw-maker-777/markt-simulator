@@ -158,7 +158,7 @@ with st.sidebar.expander("5. 🌍 Zufällige Schocks"):
 if is_preset_scenario:
     st.sidebar.info("🔒 Dies ist ein vorgefertigtes Szenario. Die Regler sind gesperrt. Wähle 'Benutzerdefiniert', um sie zu bearbeiten.")
 
-# --- Simulations-Funktion (mit der neuen, stabilen Logik) ---
+# --- Simulations-Funktion (KORREKTUR: LIQUIDITÄT ANPASSEN, ABER ANGEBOT UND NACHFRAGE NICHT AUF NULL SETZEN) ---
 def run_simulation(progress_bar, **kwargs):
     tage = kwargs.get('tage', 500)
     retail_start = kwargs.get('retail_start', 0.6)
@@ -190,7 +190,7 @@ def run_simulation(progress_bar, **kwargs):
     hft_active = True
     volume_retail = 100
     volume_fund = 1000
-    total_volume = volume_retail + volume_fund  # = 1100 (konstant)
+    total_volume = volume_retail + volume_fund
     retail_quotes = [retail_quote]
     fund_quotes = [fund_quote]
     hft_active_history = [1]
@@ -244,16 +244,21 @@ def run_simulation(progress_bar, **kwargs):
         fund_net = (fund_quote - fund_quote_prev) * fund_volume
         net_demand = retail_net + fund_net
         
-        # --- NEUE, ULTIMATIVE PREISLOGIK (OHNE LIQUIDITÄTS-DIVISION) ---
+        # --- KORREKTUR: Liquidität steuern, aber niemals auf 0 setzen ---
+        # Wenn HFTs aktiv sind, haben wir volle Liquidität (100).
+        # Wenn HFTs abgeschaltet sind, bricht die Liquidität auf 20% ein.
+        # Angebot und Nachfrage wirken bei geringerer Liquidität viel stärker auf den Preis (Multiplikator).
         if hft_active:
-            # Normale Marktphase: Der Preis reagiert auf Angebot und Nachfrage.
-            # Der Faktor 0.005 ist ein Impact-Multiplikator, der den Preis sanft bewegt.
-            price_change = 0.0002 + (net_demand / total_volume) * 0.005
+            liquidity = total_volume
         else:
-            # HFTs abgeschaltet: Der Markt friert ein! KEIN Handel möglich.
-            price_change = 0.0
+            liquidity = max(100, total_volume * 0.2)
         
-        # Jeder Schock wirkt sich trotzdem auf den Kurs aus.
+        if liquidity > 0:
+            # Der Impact-Faktor 0.002 sorgt für sanfte, aber realistische Bewegungen
+            price_change = 0.0002 + (net_demand / liquidity) * 0.002
+        else:
+            price_change = 0.0002 - 0.001
+        
         price_change += shock
         price = price * (1 + price_change)
         price = max(1, price)
