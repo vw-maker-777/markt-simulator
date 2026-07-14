@@ -33,7 +33,7 @@ scenario = st.sidebar.selectbox(
      "4. Ruhiger, stetiger Aufwärtstrend")
 )
 
-# --- NEU: Prüfung, ob ein vordefiniertes Szenario ausgewählt wurde ---
+# --- Prüfung, ob ein vordefiniertes Szenario ausgewählt wurde ---
 is_preset_scenario = scenario != "Benutzerdefiniert (Manuell)"
 
 # Szenario-Logik (Setzt die Standardwerte, wenn man das Szenario wechselt)
@@ -158,7 +158,7 @@ with st.sidebar.expander("5. 🌍 Zufällige Schocks"):
 if is_preset_scenario:
     st.sidebar.info("🔒 Dies ist ein vorgefertigtes Szenario. Die Regler sind gesperrt. Wähle 'Benutzerdefiniert', um sie zu bearbeiten.")
 
-# --- Simulations-Funktion (KORRIGIERTE LOGIK) ---
+# --- Simulations-Funktion (KORRIGIERTE LOGIK MIT DÄMPFUNG) ---
 def run_simulation(progress_bar, **kwargs):
     tage = kwargs.get('tage', 500)
     retail_start = kwargs.get('retail_start', 0.6)
@@ -249,9 +249,11 @@ def run_simulation(progress_bar, **kwargs):
         else:
             liquidity = max(100, total_liquidity * 0.2)
         
-        # --- KORREKTUR: KEINE /500 FALLE MEHR ---
+        # --- KORREKTUR: NEUER DÄMPFUNGSFAKTOR GEGEN DIE EXPLOSION ---
         if liquidity > 0:
-            price_change = 0.0002 + (net_demand / liquidity) * 0.1
+            # Der Dämpfungsfaktor verhindert, dass die Formel bei astronomischen Kursen explodiert
+            damp_factor = 1000.0 / (price + 1000.0)
+            price_change = 0.0002 + (net_demand / liquidity) * 0.1 * damp_factor
         else:
             price_change = 0.0002 - 0.001
         
@@ -328,7 +330,6 @@ def generate_user_friendly_insight(
 
     if hft_off_days > 0: story_text += "Die Liquidität verschwand, aber der Kurs folgte weiterhin dem Angebot und der Nachfrage der Anleger. "
 
-    # --- Zentralbank-Erkennung basierend auf tatsächlichem Drawdown ---
     cb_text = ""
     if max_drawdown < -cb_intervention_schwelle * 100:
         cb_text = f"**🏦 Rolle der Zentralbank:** Die Notenbank griff ein (da der Drawdown von {abs(max_drawdown):.1f}% ihre Eingriffsschwelle von {cb_intervention_schwelle*100:.0f}% überschritt) und verhinderte den totalen Zusammenbruch."
@@ -337,7 +338,6 @@ def generate_user_friendly_insight(
 
     conclusion = f"**📌 Fazit für Dein Portfolio:** Rendite **{final_return:.1f} %**, max. Drawdown **{abs(max_drawdown):.1f} %**."
 
-    # --- Variable cb_interventions für die Lektion ---
     cb_interventions = 0
     for i in range(1, len(prices)-1):
         if prices[i] > prices[i-1] * 1.03:
@@ -352,7 +352,6 @@ def generate_user_friendly_insight(
 
     return summary, params_text, story_text, cb_text, conclusion, lesson
 
-# --- KORRIGIERTE COACH-FUNKTION ---
 def generate_coach_explanation(final_return, max_vix, hft_off_days, retail_panik_verkauf, retail_start, fund_leverage_limit):
     if hft_off_days == 0:
         hft_status = "aktive HFTs"
@@ -373,7 +372,6 @@ def generate_coach_explanation(final_return, max_vix, hft_off_days, retail_panik
     elif retail_start < 0.50:
         text += "⚠️ **Problem: Start-Aktienquote zu niedrig.** Zu wenig langfristige Kaufkraft im Markt.\n\n"
     
-    # --- DYNAMISCHE HEBEL-ANALYSE ---
     elif fund_leverage_limit > 1.5:
         if final_return > 10:
             text += "📈 **Trotz hohem Hebel erfolgreich!** Die Fonds waren zwar extrem risikoreich (Hebel 2.0) eingestellt, aber weil der Markt von der Zentralbank stabilisiert wurde und stieg, hat sich der Hebel als Turbo für die Rallye ausgezahlt. In einem Bärenmarkt wäre dieser Hebel jedoch katastrophal gewesen.\n\n"
