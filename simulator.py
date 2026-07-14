@@ -158,7 +158,7 @@ with st.sidebar.expander("5. 🌍 Zufällige Schocks"):
 if is_preset_scenario:
     st.sidebar.info("🔒 Dies ist ein vorgefertigtes Szenario. Die Regler sind gesperrt. Wähle 'Benutzerdefiniert', um sie zu bearbeiten.")
 
-# --- Simulations-Funktion (KORRIGIERTE LOGIK MIT DÄMPFUNG) ---
+# --- Simulations-Funktion (MIT NEUEM DOPPELTEN SICHERHEITSMECHANISMUS) ---
 def run_simulation(progress_bar, **kwargs):
     tage = kwargs.get('tage', 500)
     retail_start = kwargs.get('retail_start', 0.6)
@@ -249,11 +249,16 @@ def run_simulation(progress_bar, **kwargs):
         else:
             liquidity = max(100, total_liquidity * 0.2)
         
-        # --- KORREKTUR: NEUER DÄMPFUNGSFAKTOR GEGEN DIE EXPLOSION ---
+        # --- KORREKTUR: MASSIVE DÄMPFUNG + HARTE TAGES-OBERGRENZE ---
         if liquidity > 0:
-            # Der Dämpfungsfaktor verhindert, dass die Formel bei astronomischen Kursen explodiert
-            damp_factor = 1000.0 / (price + 1000.0)
-            price_change = 0.0002 + (net_demand / liquidity) * 0.1 * damp_factor
+            # 1. Massiver Dämpfungsfaktor (verhindert exponentielles Wachstum bei sehr hohen Kursen)
+            damp_factor = 100000.0 / (price + 100000.0)  
+            
+            # 2. Berechne die rohe Preisänderung
+            raw_change = 0.0002 + (net_demand / liquidity) * 0.1 * damp_factor
+            
+            # 3. Harte Obergrenze: Maximal +/- 5% Kursänderung pro Tag
+            price_change = max(-0.05, min(0.05, raw_change))
         else:
             price_change = 0.0002 - 0.001
         
@@ -534,7 +539,7 @@ if st.button("🚀 Simulation neu starten", type="primary"):
             else:
                 dynamic_text += f"Sie haben den Hebel auf **{fund_leverage_limit:.1f}** eingestellt."
 
-        # --- SZENARIO 4: RUHIGER AUFWÄRTSTREND (MIT VOLATILITÄTS- & DRAWDOWN-CHECK) ---
+        # --- SZENARIO 4: RUHIGER AUFWÄRTSTREND ---
         elif scenario == "4. Ruhiger, stetiger Aufwärtstrend":
             dynamic_text = f"**Analyse:** Dieses Szenario ist darauf ausgelegt, einen ruhigen, stetigen Aufwärtstrend mit niedriger Panik und stabilen HFTs zu zeigen. "
             
@@ -543,7 +548,6 @@ if st.button("🚀 Simulation neu starten", type="primary"):
                 dynamic_text += f"🚨 **Achtung:** Sie haben die tägliche Volatilität auf **{schock_volatilitaet*100:.1f} %** erhöht. Damit handelt es sich **nicht mehr um einen ruhigen Markt**, sondern um einen extrem stürmischen Markt. Die hohe Volatilität hat den VIX auf {max_vix:.1f} getrieben, die HFTs für {hft_off_days} Tage abgeschaltet und zu einem Drawdown von {abs(max_drawdown):.1f} % geführt. Die erzielte Endrendite von {final_return:.1f} % ist daher das Ergebnis extremer Ausschläge, nicht einer sanften Rallye."
             
             elif retail_panik_verkauf <= 0.05 and hft_vix_abs_schaltung >= 60:
-                # NEU: Prüfe den tatsächlichen Verlauf!
                 if abs(max_drawdown) > 10:
                     dynamic_text += f"Da Sie die Panik-Rate niedrig ({retail_panik_verkauf:.1f}) und die HFT-Schwelle hoch ({hft_vix_abs_schaltung}) belassen haben, sollten die Parameter eigentlich zu einem stabilen Aufwärtstrend führen. In dieser speziellen Simulation wurde der Markt jedoch von einem extrem seltenen, aber massiven Zufallsschock (Fat Tail) getroffen, der zu einem Drawdown von {abs(max_drawdown):.1f} % führte. Trotz der guten Einstellungen zeigt der Simulator hier eine realistische Worst-Case-Abweichung."
                 else:
